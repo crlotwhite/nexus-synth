@@ -26,6 +26,17 @@
 			"env": {
 				"MEMORY_FILE_PATH": "${workspaceFolder}/.vscode/memory.json"
 			}
+		},
+		"sequential-thinking": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"@modelcontextprotocol/server-sequential-thinking"
+			]
+		},
+		"context7": {
+			"command": "npx",
+			"args": ["-y", "@upstash/context7-mcp"]
 		}
 	}
 }
