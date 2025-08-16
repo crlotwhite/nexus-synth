@@ -50,9 +50,7 @@ jobs:
         brew install pkg-config
 
     - name: Configure CMake
-      run: |
-        cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-              -DCMAKE_INSTALL_PREFIX=install
+      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_INSTALL_PREFIX=install
 
     - name: Build NexusSynth
       run: cmake --build build --config ${{ matrix.build_type }}
@@ -62,24 +60,36 @@ jobs:
         cd build
         ctest --output-on-failure -C ${{ matrix.build_type }}
 
-    - name: Test executables
+    - name: Test executables (Linux/macOS)
+      if: matrix.os != 'windows-latest'
       run: |
-        ./build/src/nexussynth${{ matrix.os == 'windows-latest' && '.exe' || '' }}
-        ./build/tests/nexussynth_tests${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+        ./build/src/nexussynth
+        ./build/tests/nexussynth_tests
+
+    - name: Test executables (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        .\build\src\nexussynth.exe
+        .\build\tests\nexussynth_tests.exe
 
     - name: Install NexusSynth
       run: cmake --install build --config ${{ matrix.build_type }}
 
-    - name: Package artifacts
+    - name: Package artifacts (Linux/macOS)
+      if: matrix.os != 'windows-latest'
       run: |
         cd install
         tar -czf ../nexussynth-${{ matrix.os }}-${{ matrix.build_type }}.tar.gz *
+
+    - name: Package artifacts (Windows)
+      if: matrix.os == 'windows-latest'
+      run: powershell -Command "Compress-Archive -Path 'install\*' -DestinationPath 'nexussynth-${{ matrix.os }}-${{ matrix.build_type }}.zip'"
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: nexussynth-${{ matrix.os }}-${{ matrix.build_type }}
-        path: nexussynth-${{ matrix.os }}-${{ matrix.build_type }}.tar.gz
+        path: "nexussynth-${{ matrix.os }}-${{ matrix.build_type }}.*"
 
   test-coverage:
     name: Coverage Analysis
