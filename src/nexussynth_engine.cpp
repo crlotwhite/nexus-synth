@@ -1,5 +1,13 @@
 #include "nexussynth/nexussynth.h"
 #include <memory>
+#include <iostream>
+
+// WORLD vocoder headers
+#include "world/dio.h"
+#include "world/harvest.h"
+#include "world/cheaptrick.h"
+#include "world/d4c.h"
+#include "world/synthesis.h"
 
 namespace nexussynth {
     
@@ -11,9 +19,28 @@ namespace nexussynth {
         
         bool initialize(const std::string& voice_bank_path) {
             // TODO: Implement voice bank loading
-            // TODO: Initialize WORLD vocoder
             // TODO: Setup HMM models
             voice_bank_path_ = voice_bank_path;
+            
+            // Test WORLD vocoder initialization
+            std::cout << "Initializing WORLD vocoder..." << std::endl;
+            
+            // Test WORLD DIO F0 estimation parameters
+            DioOption dio_option;
+            InitializeDioOption(&dio_option);
+            std::cout << "✓ WORLD DIO F0 estimation initialized" << std::endl;
+            
+            // Test WORLD CheapTrick spectral envelope parameters
+            CheapTrickOption cheaptrick_option;
+            InitializeCheapTrickOption(44100, &cheaptrick_option);
+            std::cout << "✓ WORLD CheapTrick spectral envelope initialized" << std::endl;
+            
+            // Test WORLD D4C aperiodicity parameters
+            D4COption d4c_option;
+            InitializeD4COption(&d4c_option);
+            std::cout << "✓ WORLD D4C aperiodicity estimation initialized" << std::endl;
+            
+            std::cout << "✓ WORLD vocoder integration successful!" << std::endl;
             return true;
         }
         

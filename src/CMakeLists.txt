@@ -12,8 +12,14 @@ set_target_properties(nexussynth_lib PROPERTIES
     CXX_STANDARD_REQUIRED ON
 )
 
+# Add WORLD include directories
+target_include_directories(nexussynth_lib PRIVATE ${CMAKE_SOURCE_DIR}/external/WORLD/src)
+
 # Create main executable
 add_executable(nexussynth main.cpp)
+
+# Link dependencies to library
+target_link_libraries(nexussynth_lib world)
 
 # Link library to executable
 target_link_libraries(nexussynth nexussynth_lib)

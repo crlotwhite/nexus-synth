@@ -43,6 +43,9 @@ set(TESTS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tests)
 # Include directories
 include_directories(${INCLUDE_DIR})
 
+# External dependencies
+add_subdirectory(external/WORLD)
+
 # Add subdirectories
 add_subdirectory(src)
 add_subdirectory(tests)
