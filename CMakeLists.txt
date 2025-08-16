@@ -25,7 +25,10 @@ if(WIN32)
         set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /Od /Zi /D_DEBUG")
 
         # Windows-specific defines
-        add_definitions(-DNOMINMAX -DWIN32_LEAN_AND_MEAN)
+    add_definitions(-DNOMINMAX -DWIN32_LEAN_AND_MEAN)
+
+    # Ensure math constants like M_PI are available with MSVC
+    add_compile_definitions(_USE_MATH_DEFINES)
 
         # Enable multiprocessor compilation
         add_compile_options(/MP)
