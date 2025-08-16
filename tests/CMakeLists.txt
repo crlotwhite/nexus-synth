@@ -19,5 +19,13 @@ set_target_properties(nexussynth_tests PROPERTIES
     CXX_STANDARD_REQUIRED ON
 )
 
-# Register tests
-add_test(NAME nexussynth_unit_tests COMMAND nexussynth_tests)
+# Register tests with CTest
+add_test(NAME nexussynth_unit_tests 
+         COMMAND nexussynth_tests
+         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+# Set test properties
+set_tests_properties(nexussynth_unit_tests PROPERTIES
+    TIMEOUT 30
+    FAIL_REGULAR_EXPRESSION "FAIL|ERROR|failed"
+)

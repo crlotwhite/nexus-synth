@@ -15,11 +15,31 @@ if(WIN32)
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
     set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
     
+    # Enable DLL symbol exports for Windows
+    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    
     # Compiler flags for Windows x64
     if(MSVC)
         add_compile_options(/W4)
-        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2")
-        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /Od /Zi")
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2 /DNDEBUG")
+        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /Od /Zi /D_DEBUG")
+        
+        # Windows-specific defines
+        add_definitions(-DNOMINMAX -DWIN32_LEAN_AND_MEAN)
+        
+        # Enable multiprocessor compilation
+        add_compile_options(/MP)
+        
+        # Static runtime for easier distribution
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    endif()
+    
+    # Windows x64 architecture check
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+        message(STATUS "Building for Windows x64")
+        add_definitions(-D_WIN64)
+    else()
+        message(WARNING "Building for Windows x86 - x64 is recommended for NexusSynth")
     endif()
 else()
     # Cross-platform compiler flags
@@ -55,6 +75,9 @@ add_subdirectory(external/asmjit)
 
 # cJSON (JSON processing)
 add_subdirectory(external/cJSON)
+
+# Enable testing
+enable_testing()
 
 # Add subdirectories
 add_subdirectory(src)

@@ -1,0 +1,155 @@
+name: NexusSynth CI/CD
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        build_type: [Debug, Release]
+      fail-fast: false
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup CMake
+      uses: jwlawson/actions-setup-cmake@v1.14
+      with:
+        cmake-version: '3.16'
+
+    - name: Setup MSVC (Windows only)
+      if: matrix.os == 'windows-latest'
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+
+    - name: Install dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential pkg-config
+
+    - name: Install dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        brew install pkg-config
+
+    - name: Configure CMake
+      run: |
+        cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+              -DCMAKE_INSTALL_PREFIX=install
+
+    - name: Build NexusSynth
+      run: cmake --build build --config ${{ matrix.build_type }}
+
+    - name: Run tests
+      run: |
+        cd build
+        ctest --output-on-failure -C ${{ matrix.build_type }}
+
+    - name: Test executables
+      run: |
+        ./build/src/nexussynth${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+        ./build/tests/nexussynth_tests${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+
+    - name: Install NexusSynth
+      run: cmake --install build --config ${{ matrix.build_type }}
+
+    - name: Package artifacts
+      run: |
+        cd install
+        tar -czf ../nexussynth-${{ matrix.os }}-${{ matrix.build_type }}.tar.gz *
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: nexussynth-${{ matrix.os }}-${{ matrix.build_type }}
+        path: nexussynth-${{ matrix.os }}-${{ matrix.build_type }}.tar.gz
+
+  test-coverage:
+    name: Coverage Analysis
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential pkg-config lcov
+
+    - name: Configure with coverage
+      run: |
+        cmake -B build -DCMAKE_BUILD_TYPE=Debug \
+              -DCMAKE_CXX_FLAGS="--coverage -g -O0"
+
+    - name: Build with coverage
+      run: cmake --build build
+
+    - name: Run tests with coverage
+      run: |
+        cd build
+        ctest --output-on-failure
+
+    - name: Generate coverage report
+      run: |
+        lcov --capture --directory build --output-file coverage.info
+        lcov --remove coverage.info '/usr/*' --output-file coverage.info
+        lcov --remove coverage.info '*/external/*' --output-file coverage.info
+        lcov --list coverage.info
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.info
+        flags: unittests
+        name: codecov-umbrella
+
+  static-analysis:
+    name: Static Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install cppcheck
+      run: sudo apt-get install -y cppcheck
+
+    - name: Run cppcheck
+      run: |
+        cppcheck --enable=all --error-exitcode=1 \
+                 --suppress=missingIncludeSystem \
+                 --suppress=unmatchedSuppression \
+                 --inline-suppr \
+                 src/ include/
+
+    - name: Setup clang-tidy
+      run: |
+        sudo apt-get install -y clang-tidy-14
+        sudo ln -sf /usr/bin/clang-tidy-14 /usr/bin/clang-tidy
+
+    - name: Configure for static analysis
+      run: |
+        cmake -B build -DCMAKE_BUILD_TYPE=Debug \
+              -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+    - name: Run clang-tidy
+      run: |
+        clang-tidy src/*.cpp -p build/ || true

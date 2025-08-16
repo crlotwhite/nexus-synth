@@ -9,7 +9,7 @@
         "testStrategy": "CMake 빌드 성공 확인, 각 의존성 라이브러리 헤더 include 및 기본 함수 호출 테스트, 크로스 플랫폼 빌드 검증",
         "priority": "high",
         "dependencies": [],
-        "status": "in-progress",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -61,7 +61,7 @@
               "1.4"
             ],
             "details": ".github/workflows/build.yml 생성:\n- Windows, Linux, macOS 빌드\n- CMake configure & build\n- 단위 테스트 실행\n- 아티팩트 업로드\nWindows 특정: set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           }
         ]
@@ -778,7 +778,7 @@
     ],
     "metadata": {
       "created": "2025-08-16T15:50:51.347Z",
-      "updated": "2025-08-16T17:02:02.033Z",
+      "updated": "2025-08-16T17:06:03.651Z",
       "description": "Tasks for master context"
     }
   }
