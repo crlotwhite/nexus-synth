@@ -1,6 +1,6 @@
 ---
 mode: agent
-tools: ['codebase', 'think', 'task-master-ai', 'memory', 'context7', 'microsoft-docs', 'sequentialthinking', 'websearch']
+tools: ['extensions', 'codebase', 'usages', 'vscodeAPI', 'think', 'problems', 'changes', 'testFailure', 'terminalSelection', 'terminalLastCommand', 'openSimpleBrowser', 'fetch', 'findTestFiles', 'searchResults', 'githubRepo', 'runCommands', 'runTasks', 'editFiles', 'runNotebooks', 'search', 'new', 'microsoft-docs', 'context7', 'sequentialthinking', 'task-master-ai', 'memory', 'websearch']
 ---
 
 다음 작업 흐름을 따르세요. 각 단계는 순차적으로 수행하고, 문제 발생 시 즉시 수정 후 다음 단계로 진행합니다.
