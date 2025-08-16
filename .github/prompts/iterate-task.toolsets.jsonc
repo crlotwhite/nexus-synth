@@ -1,0 +1,41 @@
+// Place your tool sets here...
+// Example:
+// {
+// 	"toolSetName": {
+// 		"tools": [
+// 			"someTool",
+// 			"anotherTool"
+// 		],
+// 		"description": "description",
+// 		"icon": "tools"
+// 	}
+// }
+{
+    "proceedings": {
+        "tools": [
+            "codebase",
+            "think",
+            "task-master-ai",
+            "memory",
+            "context7",
+            "microsoft-docs",
+            "sequentialthinking",
+            "websearch"
+        ],
+        "description": "A set of tools for managing and task proceedings.",
+        "icon": "tools"
+    },
+    "research": {
+        "tools": [
+            "fetch",
+            "websearch",
+            "context7",
+            "microsoft-docs-search",
+            "think",
+            "sequentialthinking",
+            "codebase"
+        ],
+        "description": "Tools for conducting research and gathering information.",
+        "icon": "tools"
+    }
+}

@@ -19,6 +19,13 @@
         "OLLAMA_API_KEY": "YOUR_OLLAMA_API_KEY_HERE"
       },
       "type": "stdio"
-    }
+    },
+    "memory": {
+			"command": "npx",
+			"args": ["-y", "@modelcontextprotocol/server-memory"],
+			"env": {
+				"MEMORY_FILE_PATH": "${workspaceFolder}/.vscode/memory.json"
+			}
+		}
   }
 }
