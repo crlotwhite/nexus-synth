@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.19)
 
 # Project configuration
 project(NexusSynth VERSION 1.0.0 LANGUAGES CXX)
@@ -14,26 +14,26 @@ if(WIN32)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
     set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-    
+
     # Enable DLL symbol exports for Windows
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-    
+
     # Compiler flags for Windows x64
     if(MSVC)
         add_compile_options(/W4)
         set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2 /DNDEBUG")
         set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /Od /Zi /D_DEBUG")
-        
+
         # Windows-specific defines
         add_definitions(-DNOMINMAX -DWIN32_LEAN_AND_MEAN)
-        
+
         # Enable multiprocessor compilation
         add_compile_options(/MP)
-        
+
         # Static runtime for easier distribution
         set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
     endif()
-    
+
     # Windows x64 architecture check
     if(CMAKE_SIZEOF_VOID_P EQUAL 8)
         message(STATUS "Building for Windows x64")
@@ -87,15 +87,15 @@ add_subdirectory(tests)
 configure_file(nexussynth.pc.in "${CMAKE_BINARY_DIR}/nexussynth.pc" @ONLY)
 
 # Install pkg-config file
-install(FILES "${CMAKE_BINARY_DIR}/nexussynth.pc" 
+install(FILES "${CMAKE_BINARY_DIR}/nexussynth.pc"
         DESTINATION lib/pkgconfig)
 
 # Install headers
-install(DIRECTORY include/nexussynth 
+install(DIRECTORY include/nexussynth
         DESTINATION include)
 
 # Install library
-install(TARGETS nexussynth_lib 
+install(TARGETS nexussynth_lib
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
 
