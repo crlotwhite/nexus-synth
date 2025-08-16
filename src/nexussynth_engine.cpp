@@ -9,6 +9,16 @@
 #include "world/d4c.h"
 #include "world/synthesis.h"
 
+// Eigen headers
+#include <Eigen/Core>
+#include <Eigen/Dense>
+
+// AsmJit headers
+#include <asmjit/asmjit.h>
+
+// cJSON headers
+#include <cJSON.h>
+
 namespace nexussynth {
     
     // Private implementation class
@@ -41,6 +51,34 @@ namespace nexussynth {
             std::cout << "✓ WORLD D4C aperiodicity estimation initialized" << std::endl;
             
             std::cout << "✓ WORLD vocoder integration successful!" << std::endl;
+            
+            // Test Eigen linear algebra
+            std::cout << "\nTesting Eigen linear algebra..." << std::endl;
+            Eigen::MatrixXd matrix(3, 3);
+            matrix << 1, 2, 3,
+                      4, 5, 6,
+                      7, 8, 9;
+            std::cout << "✓ Eigen 3x3 matrix created and initialized" << std::endl;
+            
+            // Test AsmJit compilation environment
+            std::cout << "\nTesting AsmJit JIT compiler..." << std::endl;
+            asmjit::JitRuntime jit_runtime;
+            std::cout << "✓ AsmJit runtime initialized for JIT compilation" << std::endl;
+            
+            // Test cJSON configuration parsing
+            std::cout << "\nTesting cJSON configuration..." << std::endl;
+            cJSON* config = cJSON_CreateObject();
+            cJSON* engine_name = cJSON_CreateString("NexusSynth");
+            cJSON_AddItemToObject(config, "engine", engine_name);
+            
+            char* json_string = cJSON_Print(config);
+            if (json_string) {
+                std::cout << "✓ cJSON configuration: " << json_string << std::endl;
+                free(json_string);
+            }
+            cJSON_Delete(config);
+            
+            std::cout << "\n✅ All dependencies integrated successfully!" << std::endl;
             return true;
         }
         

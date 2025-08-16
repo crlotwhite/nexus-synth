@@ -46,9 +46,35 @@ include_directories(${INCLUDE_DIR})
 # External dependencies
 add_subdirectory(external/WORLD)
 
+# Eigen3 (header-only library)
+add_subdirectory(external/Eigen)
+
+# AsmJit (JIT compilation)
+set(ASMJIT_STATIC TRUE)
+add_subdirectory(external/asmjit)
+
+# cJSON (JSON processing)
+add_subdirectory(external/cJSON)
+
 # Add subdirectories
 add_subdirectory(src)
 add_subdirectory(tests)
+
+# Generate pkg-config file
+configure_file(nexussynth.pc.in "${CMAKE_BINARY_DIR}/nexussynth.pc" @ONLY)
+
+# Install pkg-config file
+install(FILES "${CMAKE_BINARY_DIR}/nexussynth.pc" 
+        DESTINATION lib/pkgconfig)
+
+# Install headers
+install(DIRECTORY include/nexussynth 
+        DESTINATION include)
+
+# Install library
+install(TARGETS nexussynth_lib 
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib)
 
 # Project information
 message(STATUS "Building ${PROJECT_NAME} v${PROJECT_VERSION}")

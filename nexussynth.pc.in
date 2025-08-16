@@ -1,0 +1,13 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: NexusSynth
+Description: Next-generation vocal synthesis resampler engine for UTAU
+Version: @PROJECT_VERSION@
+URL: https://github.com/nexussynth/nexus-synth
+Libs: -L${libdir} -lnexussynth_lib -lworld -lasmjit -lcjson
+Libs.private: -lpthread -lm -ldl
+Cflags: -I${includedir}
+Requires: eigen3 >= 3.3
