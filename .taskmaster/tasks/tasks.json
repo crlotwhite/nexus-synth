@@ -9,7 +9,7 @@
         "testStrategy": "CMake 빌드 성공 확인, 각 의존성 라이브러리 헤더 include 및 기본 함수 호출 테스트, 크로스 플랫폼 빌드 검증",
         "priority": "high",
         "dependencies": [],
-        "status": "pending",
+        "status": "in-progress",
         "subtasks": [
           {
             "id": 1,
@@ -17,7 +17,7 @@
             "description": "최상위 CMakeLists.txt 파일을 생성하고 C++ 프로젝트 기본 설정(프로젝트 이름, 버전, C++ 표준)을 정의합니다. Windows x64 타겟을 위한 컴파일러 플래그 및 빌드 타입(Debug/Release) 설정을 포함합니다.",
             "dependencies": [],
             "details": "cmake_minimum_required(VERSION 3.16)\nproject(NexusSynth VERSION 1.0.0 LANGUAGES CXX)\nset(CMAKE_CXX_STANDARD 17)\nset(CMAKE_CXX_STANDARD_REQUIRED ON)\nif(WIN32)\n  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)\n  set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)\nendif()",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -28,7 +28,7 @@
               "1.1"
             ],
             "details": "디렉토리 구조:\n- src/ : 메인 소스코드\n- include/nexussynth/ : 공개 API 헤더\n- lib/ : 외부 라이브러리\n- tests/ : 단위 테스트\n각 디렉토리별 CMakeLists.txt 포함",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -778,7 +778,7 @@
     ],
     "metadata": {
       "created": "2025-08-16T15:50:51.347Z",
-      "updated": "2025-08-16T15:50:51.347Z",
+      "updated": "2025-08-16T16:51:06.177Z",
       "description": "Tasks for master context"
     }
   }

@@ -1,0 +1,53 @@
+cmake_minimum_required(VERSION 3.16)
+
+# Project configuration
+project(NexusSynth VERSION 1.0.0 LANGUAGES CXX)
+
+# C++ standard configuration
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Platform-specific configuration
+if(WIN32)
+    # Windows x64 specific settings
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+    
+    # Compiler flags for Windows x64
+    if(MSVC)
+        add_compile_options(/W4)
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2")
+        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /Od /Zi")
+    endif()
+else()
+    # Cross-platform compiler flags
+    add_compile_options(-Wall -Wextra -Wpedantic)
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")
+endif()
+
+# Build type configuration
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+endif()
+
+# Project directories
+set(SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
+set(INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
+set(LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib)
+set(TESTS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+
+# Include directories
+include_directories(${INCLUDE_DIR})
+
+# Add subdirectories
+add_subdirectory(src)
+add_subdirectory(tests)
+
+# Project information
+message(STATUS "Building ${PROJECT_NAME} v${PROJECT_VERSION}")
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "C++ standard: ${CMAKE_CXX_STANDARD}")
