@@ -1,0 +1,785 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "프로젝트 기반 설정 및 빌드 시스템 구축",
+        "description": "CMake 기반 빌드 시스템 설정, 디렉토리 구조 생성, 의존성 라이브러리(WORLD, Eigen, Asmjit, cJSON) 통합",
+        "details": "CMakeLists.txt 생성하여 C++ 프로젝트 설정. src/, include/, lib/, tests/ 디렉토리 구조 생성. WORLD 보코더(F0/SP/AP 분석), Eigen(행렬 연산), Asmjit(JIT 컴파일), cJSON(설정 직렬화) 라이브러리를 git submodule 또는 find_package로 통합. Windows x64 타겟으로 컴파일러 설정. pkg-config 지원 추가.",
+        "testStrategy": "CMake 빌드 성공 확인, 각 의존성 라이브러리 헤더 include 및 기본 함수 호출 테스트, 크로스 플랫폼 빌드 검증",
+        "priority": "high",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "CMakeLists.txt 기본 구조 작성 및 프로젝트 설정",
+            "description": "최상위 CMakeLists.txt 파일을 생성하고 C++ 프로젝트 기본 설정(프로젝트 이름, 버전, C++ 표준)을 정의합니다. Windows x64 타겟을 위한 컴파일러 플래그 및 빌드 타입(Debug/Release) 설정을 포함합니다.",
+            "dependencies": [],
+            "details": "cmake_minimum_required(VERSION 3.16)\nproject(NexusSynth VERSION 1.0.0 LANGUAGES CXX)\nset(CMAKE_CXX_STANDARD 17)\nset(CMAKE_CXX_STANDARD_REQUIRED ON)\nif(WIN32)\n  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)\n  set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)\nendif()",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "프로젝트 디렉토리 구조 생성 및 소스 파일 템플릿 준비",
+            "description": "src/, include/, lib/, tests/ 디렉토리를 생성하고 각 디렉토리에 기본 소스 파일 템플릿(main.cpp, CMakeLists.txt)을 추가합니다. include/ 디렉토리에 공통 헤더 및 네임스페이스 구조를 정의합니다.",
+            "dependencies": [
+              "1.1"
+            ],
+            "details": "디렉토리 구조:\n- src/ : 메인 소스코드\n- include/nexussynth/ : 공개 API 헤더\n- lib/ : 외부 라이브러리\n- tests/ : 단위 테스트\n각 디렉토리별 CMakeLists.txt 포함",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "WORLD 보코더 라이브러리 통합 설정",
+            "description": "WORLD 라이브러리를 git submodule로 추가하거나 find_package로 시스템 설치 버전을 찾도록 CMake 설정을 구성합니다. WORLD 헤더 경로 및 라이브러리 링크를 프로젝트에 통합합니다.",
+            "dependencies": [
+              "1.2"
+            ],
+            "details": "add_subdirectory(external/WORLD) 또는 find_package(WORLD REQUIRED)\ntarget_include_directories(nexussynth PRIVATE ${WORLD_INCLUDE_DIRS})\ntarget_link_libraries(nexussynth ${WORLD_LIBRARIES})",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Eigen, Asmjit, cJSON 의존성 통합 및 pkg-config 설정",
+            "description": "Eigen(헤더 전용), Asmjit(JIT 컴파일), cJSON(JSON 처리) 라이브러리를 CMake에 통합하고 pkg-config .pc 파일을 생성하여 시스템 설치를 지원합니다. 각 라이브러리의 링크 및 include 경로를 설정합니다.",
+            "dependencies": [
+              "1.3"
+            ],
+            "details": "Eigen: find_package(Eigen3 REQUIRED)\nAsmjit: add_subdirectory(external/asmjit)\ncJSON: find_package(cJSON REQUIRED)\npkg-config 파일 생성: lib/pkgconfig/nexussynth.pc",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Windows x64 크로스 플랫폼 빌드 및 CI 설정 구성",
+            "description": "Windows x64 타겟을 위한 특정 설정(MSVC 컴파일러 플래그, .dll 배포)을 추가하고 GitHub Actions 또는 기타 CI 시스템을 위한 워크플로우 파일을 작성합니다. 빌드 테스트 및 패키징 자동화를 구성합니다.",
+            "dependencies": [
+              "1.4"
+            ],
+            "details": ".github/workflows/build.yml 생성:\n- Windows, Linux, macOS 빌드\n- CMake configure & build\n- 단위 테스트 실행\n- 아티팩트 업로드\nWindows 특정: set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)",
+            "status": "pending",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "WORLD 보코더 통합 및 기본 파라미터 추출 구현",
+        "description": "WORLD 라이브러리를 활용한 F0, 스펙트럼 포락선(SP), 비주기성(AP) 파라미터 추출 모듈 구현",
+        "details": "WORLD의 Dio, CheapTrick, D4C 알고리즘 래퍼 클래스 구현. WAV 파일 로딩, 프레임 단위 F0/SP/AP 추출, 파라미터 시간 정렬 처리. 16kHz/44.1kHz 등 다양한 샘플레이트 지원. 메모리 효율적인 버퍼 관리. 추출된 파라미터의 JSON 직렬화 지원.",
+        "testStrategy": "표준 UTAU 보이스뱅크 샘플로 파라미터 추출 테스트, 원본 대비 재합성 품질 검증, 다양한 샘플레이트에서 안정성 확인",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "WORLD 래퍼 클래스 설계 및 인터페이스 정의",
+            "description": "Dio, CheapTrick, D4C 알고리즘을 위한 C++ 래퍼 클래스 구조 설계 및 공통 인터페이스 정의",
+            "dependencies": [],
+            "details": "WorldWrapper 베이스 클래스 정의, 각 알고리즘별 파생 클래스 설계, 파라미터 구조체 정의, 메모리 관리 인터페이스 설계, 예외 처리 전략 수립",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "WAV 파일 로더 및 오디오 버퍼 관리 구현",
+            "description": "16kHz/44.1kHz 등 다양한 샘플레이트를 지원하는 WAV 파일 로더 및 메모리 효율적인 버퍼 관리 시스템 구현",
+            "dependencies": [
+              "2.1"
+            ],
+            "details": "libsndfile 또는 기본 WAV 파서 구현, 샘플레이트 자동 감지 및 변환, 오디오 버퍼 풀링 메커니즘, 메모리 할당 최적화, 스테레오/모노 처리 지원",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "F0 추출 모듈 (Dio 래퍼) 구현",
+            "description": "WORLD Dio 알고리즘을 활용한 기본 주파수(F0) 추출 모듈 구현",
+            "dependencies": [
+              "2.1",
+              "2.2"
+            ],
+            "details": "Dio 알고리즘 파라미터 설정, 프레임 단위 F0 추출, F0 신뢰도 계산, 시간 정렬 처리, 실시간 처리를 위한 버퍼링 전략",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "SP/AP 추출 모듈 (CheapTrick/D4C 래퍼) 구현",
+            "description": "CheapTrick과 D4C 알고리즘을 활용한 스펙트럼 포락선(SP)과 비주기성(AP) 파라미터 추출 구현",
+            "dependencies": [
+              "2.1",
+              "2.2",
+              "2.3"
+            ],
+            "details": "CheapTrick SP 추출 파라미터 최적화, D4C AP 추출 구현, SP/AP 파라미터 동기화, FFT 크기 동적 조정, 메모리 효율적인 스펙트럼 계산",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "멀티 샘플레이트 지원 및 파라미터 정규화",
+            "description": "다양한 입력 샘플레이트에 대한 파라미터 추출 및 정규화 처리 구현",
+            "dependencies": [
+              "2.3",
+              "2.4"
+            ],
+            "details": "샘플레이트별 파라미터 스케일링, 표준화된 파라미터 출력 형식, 프레임 크기 자동 계산, 고차원 SP/AP 차원 축소 전략, 호환성 레이어 구현",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "JSON 직렬화 및 파라미터 저장 구현",
+            "description": "추출된 F0, SP, AP 파라미터를 JSON 형식으로 직렬화하여 저장하는 기능 구현",
+            "dependencies": [
+              "2.3",
+              "2.4",
+              "2.5"
+            ],
+            "details": "cJSON 라이브러리 통합, 파라미터 구조 JSON 스키마 정의, 압축 저장 옵션, 버전 관리 시스템, 대용량 데이터 처리를 위한 스트리밍 저장 지원",
+            "status": "pending",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "HMM 모델 구조 및 데이터 표현 설계",
+        "description": "HTS 스타일 HMM 모델 구조 정의, 상태/전이/출력 분포 데이터 구조 및 .nvm 파일 포맷 설계",
+        "details": "HMM 상태 구조체 정의(평균, 분산, 전이 확률). 가우시안 혼합 모델 출력 분포 구현. 문맥 특징 벡터 스키마 설계(음소/음표/가사 정보). .nvm 바이너리 파일 포맷 정의(헤더, 모델 데이터, 인덱스). 메타데이터(보이스뱅크 정보, 샘플레이트) 구조. 압축 및 체크섬 지원.",
+        "testStrategy": ".nvm 파일 읽기/쓰기 테스트, 다양한 크기의 모델 직렬화 검증, 파일 무결성 체크",
+        "priority": "high",
+        "dependencies": [
+          2
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "HMM 상태 구조체 정의",
+            "description": "HTS 스타일 HMM의 상태를 표현하는 C++ 구조체 설계: 평균 벡터, 공분산 행렬, 전이 확률 저장",
+            "dependencies": [],
+            "details": "GaussianState 구조체 정의: mean(μ), cov(Σ) Eigen::VectorXd/Eigen::MatrixXd 사용. Transition 구조체: self-loop, next-state 확률 저장. 메모리 정렬 및 패딩 최적화. 직렬화/역직렬화 메서드 포함",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "가우시안 혼합 모델 출력 분포 구현",
+            "description": "GMM 기반 출력 확률 분포 구조체 및 연산 구현: 혼합 가중치, 다중 가우시안 컴포넌트 관리",
+            "dependencies": [
+              "3.1"
+            ],
+            "details": "GaussianMixture 클래스: weights, components(std::vector<GaussianState>), log-likelihood 계산 메서드. EM 알고리즘 준비를 위한 충분 통계량 구조. 수치 안정성을 위한 로그 공간 연산 구현",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "문맥 특징 벡터 스키마 설계",
+            "description": "음소/음표/가사 정보를 담은 문맥 특징 벡터 구조 및 인코딩 체계 정의",
+            "dependencies": [],
+            "details": "ContextFeature 구조체: phoneme identity, note pitch/duration, lyric encoding. One-hot 및 continuous 특징 하이브리드 방식. 특징 차원 계산 및 인덱싱 매핑. 질문 파일 기반 특징 추출 인터페이스",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": ".nvm 바이너리 파일 포맷 명세 정의",
+            "description": "NexusSynth 모델 파일(.nvm)의 바이너리 포맷 완전 명세: 헤더, 데이터 레이아웃, 인덱스 구조",
+            "dependencies": [
+              "3.1",
+              "3.2",
+              "3.3"
+            ],
+            "details": "파일 헤더: 매직 넘버('NVM1'), 버전, 모델 개수, 메타데이터 오프셋. 데이터 섹션: HMM 상태 연속 저장, 인덱스 테이블: 모델 이름→오프셋 매핑. little-endian 바이트 오더 표준. 확장 가능한 청크 기반 구조",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "압축 및 체크섬 지원 구현",
+            "description": ".nvm 파일의 무결성 검증 및 압축 기능 구현: zlib 압축, CRC32/SHA256 체크섬",
+            "dependencies": [
+              "3.4"
+            ],
+            "details": "압축 헤더 플래그: none/zlib/lz4. 체크섬 필드: header checksum, data checksum. 압축/해제 스트림 래퍼 클래스. 체크섬 검증 실패 시 예외 처리. 성능 최적화를 위한 청크 단위 압축",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "메타데이터 구조 설계",
+            "description": "보이스뱅크 정보 및 샘플레이트 등 모델 메타데이터 구조체 정의",
+            "dependencies": [],
+            "details": "VoiceMetadata 구조체: voicebank name, author, sample rate, frame period, version. UTF-8 문자열 인코딩 표준. 선택적 필드: description, creation date, license. JSON 직렬화/역직렬화 메서드 포함",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "버전 관리 및 호환성 시스템 구현",
+            "description": ".nvm 포맷의 버전 관리 및 하위 호환성 유지를 위한 시스템 설계",
+            "dependencies": [
+              "3.4",
+              "3.5",
+              "3.6"
+            ],
+            "details": "Semantic versioning(major.minor.patch) 적용. 버전 감지 및 마이그레이션 인터페이스. 하위 호환성 체크 매트릭스. deprecated 필드 처리 전략. 자동 업그레이드/다운그레이드 변환 유틸리티",
+            "status": "pending",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "UTAU oto.ini 파싱 및 문맥 특징 생성",
+        "description": "UTAU 보이스뱅크의 oto.ini 파일 파싱, 음소/음표/가사 정보를 HMM 문맥 특징 벡터로 변환",
+        "details": "oto.ini 파일 파서 구현(UTF-8/Shift-JIS 인코딩 지원). 음소 경계 정보 추출, 일본어 VCV 패턴 인식. MIDI 피치, 음표 길이, 마디 내 위치 정보 처리. 문맥 특징 벡터 생성(이전/현재/다음 음소, 모음/자음 분류, 음절 위치). 레이블 파일(.lab) 생성 지원.",
+        "testStrategy": "다양한 UTAU 보이스뱅크 oto.ini 파싱 테스트, 문맥 특징 벡터 정확성 검증, 인코딩 호환성 확인",
+        "priority": "high",
+        "dependencies": [
+          3
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "oto.ini 파일 파서 구현",
+            "description": "UTF-8 및 Shift-JIS 인코딩을 지원하는 oto.ini 파일 파서를 구현하고, 파일 구조를 파악하여 각 음소 항목의 필드를 추출합니다.",
+            "dependencies": [],
+            "details": "파일 입출력 처리, 인코딩 감지 및 변환 로직 구현, oto.ini 항목 파싱(별명, 파일명, 오프셋, 컨소넌트, 블랭크, 프리우더, 오버랩 값 추출)",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "음소 경계 정보 추출 및 VCV 패턴 인식",
+            "description": "파싱된 oto.ini 데이터에서 음소 경계 정보를 추출하고, 일본어 VCV(모음-자음-모음) 패턴을 인식하여 연속적인 음소 시퀀스를 구성합니다.",
+            "dependencies": [
+              "4.1"
+            ],
+            "details": "음소 시작/끝 위치 계산, VCV 패턴 매칭 규칙 정의, 연속 음소 간 전이 규칙 적용, 예외 케이스 처리",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "MIDI 정보와 음소 데이터 통합",
+            "description": "MIDI 피치, 음표 길이, 마디 내 위치 정보를 음소 데이터와 매핑하여 시간 정렬된 통합 데이터 구조를 생성합니다.",
+            "dependencies": [
+              "4.2"
+            ],
+            "details": "MIDI 이벤트 파싱, 타임스탬프 계산, 음표-음소 매핑 알고리즘, 템포 변화 처리, 마디 경계 인식",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "HMM 문맥 특징 벡터 생성",
+            "description": "이전/현재/다음 음소 정보, 모음/자음 분류, 음절 위치 등의 특징을 추출하여 HMM 모델에 사용할 문맥 특징 벡터를 생성합니다.",
+            "dependencies": [
+              "4.3"
+            ],
+            "details": "음소 분류(모음/자음), 음절 위치 계산, 문맥 윈도우 설정(±1 음소), 특징 벡터 정규화, 벡터 차원 정의",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "레이블 파일(.lab) 생성 및 검증",
+            "description": "생성된 문맥 특징 벡터를 기반으로 표준 레이블 파일(.lab)을 생성하고, 데이터 무결성을 검증합니다.",
+            "dependencies": [
+              "4.4"
+            ],
+            "details": "레이블 파일 포맷 정의, 시간 정보 포함, 특징 벡터 직렬화, 파일 유효성 검사, 오류 리포트 생성",
+            "status": "pending",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "기본 HMM 모델 훈련 시스템 구현",
+        "description": "문맥 특징과 WORLD 파라미터를 이용한 HMM 모델 훈련 알고리즘 구현, 가우시안 혼합 모델 학습",
+        "details": "EM 알고리즘 기반 HMM 훈련 구현. 다중 가우시안 혼합 모델 추정. Viterbi 정렬로 음소-프레임 대응. 충분한 훈련 데이터 확보를 위한 데이터 증강. 모델 수렴 판정 및 조기 종료. 전역 분산(GV) 통계 계산. 멀티스레드 훈련 지원.",
+        "testStrategy": "소규모 훈련 세트로 모델 수렴 확인, 생성된 HMM 모델 품질 평가, 메모리 사용량 최적화 검증",
+        "priority": "high",
+        "dependencies": [
+          4
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "EM 알고리즘 기반 HMM 훈련 코어 구현",
+            "description": "Baum-Welch 알고리즘을 포함한 EM 알고리즘의 기본 루프 구현, Forward-Backward 확률 계산 및 파라미터 재추정 로직 작성",
+            "dependencies": [],
+            "details": "E-Step: Forward-Backward 알고리즘으로 상태 점유 확률 계산, M-Step: 가우시안 혼합 모델 파라미터(평균, 공분산, 혼합 가중치) 업데이트, 로그 우도 계산 및 수렴 판정 기준 구현",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "다중 가우시안 혼합 모델 학습 모듈 구현",
+            "description": "GMM 파라미터 추정을 위한 Expectation-Maximization 알고리즘 구현, 혼합 수 자동 결정 및 모델 선택 기준 구현",
+            "dependencies": [
+              "5.1"
+            ],
+            "details": "K-means 초기화, 혼합 수에 따른 BIC/AIC 기반 모델 선택, 각 가우시안 성분의 평균 벡터, 공분산 행렬, 혼합 가중치 학습, 정규분포 확률밀도함수 계산 최적화",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Viterbi 정렬을 통한 음소-프레임 대응 구현",
+            "description": "Viterbi 알고리즘으로 음성 프레임과 음소 상태 간 최적 경로 탐색, 강제 정렬 결과를 통한 HMM 상태 시퀀스 생성",
+            "dependencies": [
+              "5.1"
+            ],
+            "details": "트렐리스 구조 생성, 전이 확률과 방출 확률 기반 경로 점수 계산, 백트래킹으로 최적 상태 시퀀스 복원, 음소 경계 시간 정보 추출 및 저장",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "데이터 증강 및 훈련 데이터 준비 시스템",
+            "description": "원본 보이스 데이터에 대한 피치 변환, 시간 스트레칭, 노이즈 추가 등 다양한 데이터 증강 기법 구현",
+            "dependencies": [],
+            "details": "피치 시프트(±2 semitones), 시간 스트레칭(0.8x-1.2x), 가우시안 노이즈 추가, 스펙트럼 필터링, 증강된 데이터의 라벨 자동 생성 및 품질 검증",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "모델 수렴 감지 및 조기 종료 메커니즘",
+            "description": "로그 우도 변화량, 파라미터 변화량, 검증 오차 등 다중 기반 수렴 판정 시스템 구현",
+            "dependencies": [
+              "5.1",
+              "5.2"
+            ],
+            "details": "이전 반복 대비 로그 우도 증가량 임계값 설정, 파라미터 변화량 L2 norm 기반 수렴 판정, 검증 세트 기반 과적합 감지, 조기 종료 시 최적 모델 저장",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "전역 분산(Global Variance) 통계 계산 모듈",
+            "description": "생성된 스펙트럼 파라미터의 GV 통계 계산 및 저장, 과대/과소 평활화 방지를 위한 GV 기반 보정 구현",
+            "dependencies": [
+              "5.3"
+            ],
+            "details": "프레임별 스펙트럼 벡터의 차원별 분산 계산, 음소/문맥별 GV 통계 집계, GV 기반 파라미터 보정 가중치 계산, GV 통계 파일(JSON 형식) 저장 및 로드",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "멀티스레드 병렬 훈련 시스템 구현",
+            "description": "OpenMP 또는 스레드 풀 기반 병렬 처리로 EM 알고리즘의 E-Step과 M-Step 가속화",
+            "dependencies": [
+              "5.1",
+              "5.2"
+            ],
+            "details": "데이터 분할 기반 병렬 Forward-Backward 계산, 스레드 안전한 축적 변수 관리, 동적 작업 스케줄링, 캐시 효율성을 고려한 메모리 레이아웃 최적화",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "HMM 모델 검증 및 품질 평가 시스템",
+            "description": "소규모 검증 세트를 통한 모델 품질 평가, 합성 음성의客관적 품질 지표(MCD, F0 RMSE) 계산",
+            "dependencies": [
+              "5.3",
+              "5.5",
+              "5.6"
+            ],
+            "details": "검증 세트 기반 합성 테스트, Mel-Cepstral Distortion(MCD) 계산, F0軌跡 RMSE 측정, 합성 음성의 자연도 평가 스크립트, 품질 지표 시각화 및 리포트 생성",
+            "status": "pending",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "MLPG 파라미터 궤적 생성 엔진 구현",
+        "description": "Maximum Likelihood Parameter Generation을 통한 부드러운 파라미터 궤적 생성, GV 제약 적용",
+        "details": "MLPG 알고리즘 구현(평균, 분산으로부터 최적 궤적 생성). Eigen 라이브러리로 선형 방정식 해결. Delta, Delta-Delta 제약 적용으로 부드러운 궤적 보장. 전역 분산(GV) 제약으로 자연스러운 다이나믹 레인지 유지. 문맥 벡터에서 HMM 상태 시퀀스 결정. GPU 가속 옵션 검토.",
+        "testStrategy": "생성된 파라미터 궤적의 연속성 검증, GV 제약 효과 확인, 실시간 생성 성능 측정",
+        "priority": "high",
+        "dependencies": [
+          5
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "MLPG 핵심 알고리즘 구현",
+            "description": "평균·분산 벡터로부터 최적 파라미터 궤적을 생성하는 MLPG 기본 알고리즘 구현",
+            "dependencies": [],
+            "details": "다이나믹 특징(Δ, ΔΔ)을 포함한 W 행렬 구성, 최대우도 추정식 설정, 수치 안정성 확보를 위한 정규화 적용",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Eigen 라이브러리 통합 및 선형 방정식 해결기 구축",
+            "description": "Eigen을 활용해 대규모 희소 행렬 연산 및 선형 방정식 효율적 해결",
+            "dependencies": [
+              "6.1"
+            ],
+            "details": "SparseMatrix 및 SimplicialLLT/SparseLU solver 설정, 메모리 풀링 및 블록 연산 최적화, 벤치마크용 단위 테스트 작성",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Delta·Delta-Delta 제약 조건 적용 모듈",
+            "description": "부드러운 파라미터 궤적 보장을 위한 다이나믹 특징 제약 통합",
+            "dependencies": [
+              "6.1",
+              "6.2"
+            ],
+            "details": "Δ·ΔΔ 가중치 행렬 구성, 경계 조건 처리(첫·마지막 프레임), 실시간 체크포인트 저장 기능 추가",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "전역 분산(GV) 제약 구현",
+            "description": "자연스러운 다이나믹 레인지 유지를 위한 GV 제약 조건 추가 및 최적화",
+            "dependencies": [
+              "6.1",
+              "6.2",
+              "6.3"
+            ],
+            "details": "GV 행렬 구성·역행렬 계산, 제약 강도 λ 하이퍼파라미터 튜닝, 제약 위반 시 페널티 함수 적용",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "문맥 벡터 기반 HMM 상태 시퀀스 결정 엔진",
+            "description": "입력 문맥 벡터로부터 최적 HMM 상태 경로 탐색 및 MLPG 입력 준비",
+            "dependencies": [],
+            "details": "결정트리/신경망 기반 상태 결정 모델 통합, 상태 전이 확률 캐싱, 실시간 상태 변경 감지 및 재계산 최적화",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "GPU 가속 옵션 검토 및 벤치마크",
+            "description": "CUDA/OpenCL 기반 GPU 가속 가능성 평가 및 성능 비교",
+            "dependencies": [
+              "6.1",
+              "6.2",
+              "6.3",
+              "6.4"
+            ],
+            "details": "cuSPARSE/CLBlast 활용 희소 행렬 연산 벤치마크, CPU 대비 속도·전력 소비 측정, 하이브리드 CPU-GPU 실행 모드 설계",
+            "status": "pending",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Pulse-by-Pulse 합성 엔진 구현",
+        "description": "WORLD 파라미터로부터 고품질 음성 파형 합성, 주파수 영역 고조파 생성 및 IFFT 기반 파형 복원",
+        "details": "PbP 합성 코어 구현: F0에 따른 고조파 구조 생성, SP로 스펙트럼 필터링, AP로 비주기 성분 혼합. FFTW 또는 내장 FFT로 주파수-시간 영역 변환. 중첩-가산(overlap-add)으로 연속 파형 생성. 윈도우 함수 최적화로 artifacts 최소화. 실시간 스트리밍 지원.",
+        "testStrategy": "합성된 음성의 음질 평가, 원본 대비 재합성 정확도 측정, 실시간 처리 성능 검증",
+        "priority": "high",
+        "dependencies": [
+          6
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "PbP 합성 코어 알고리즘 구현",
+            "description": "F0 기반 고조파 생성, SP 스펙트럼 필터링, AP 비주기 성분 혼합 로직 구현",
+            "dependencies": [],
+            "details": "각 펄스별로 F0 주파수에 맞춰 고조파 구조 생성, SP 파라미터로 스펙트럼 포락선 필터링 적용, AP 파라미터로 비주기적 잡음 성분 혼합. 단일 펄스 단위 처리 함수 설계",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "FFT/IFFT 변환 모듈 구현",
+            "description": "FFTW 또는 내장 FFT 라이브러리를 활용한 주파수-시간 영역 변환 구현",
+            "dependencies": [
+              "7.1"
+            ],
+            "details": "FFT 계획(plan) 캐싱 최적화, 실시간 처리를 위한 FFT 크기 동적 조정, FFTW 멀티스레딩 설정. 주파수 영역에서 시간 영역으로의 정확한 변환 보장",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "중첩-가산(Overlap-Add) 처리 구현",
+            "description": "연속적인 파형 생성을 위한 중첩-가산 윈도우 처리 구현",
+            "dependencies": [
+              "7.2"
+            ],
+            "details": "펄스별 생성된 파형 조각들을 시간축상에서 적절히 중첩하여 연속 파형 생성. 중첩 구간 계산 및 가산 처리, 경계 부분 매끄러운 연결 구현",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "윈도우 함수 최적화 및 아티팩트 제거",
+            "description": "artifacts 최소화를 위한 최적 윈도우 함수 설계 및 적용",
+            "dependencies": [
+              "7.3"
+            ],
+            "details": "Hann, Hamming, Blackman 등 다양한 윈도우 함수 비교 실험, 파라미터별 최적 윈도우 크기 결정, pre-echo 및 spectral leakage 최소화 알고리즘 구현",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "실시간 스트리밍 버퍼 관리 구현",
+            "description": "실시간 오디오 처리를 위한 링 버퍼 및 스트리밍 인터페이스 구현",
+            "dependencies": [
+              "7.4"
+            ],
+            "details": "고정 크기 링 버퍼 설계, 입력 파라미터 스트림 버퍼링, 출력 파형 스트림 관리, 지연 시간 최소화를 위한 버퍼 크기 최적화, 스레드 안전성 보장",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "합성 품질 검증 및 성능 프로파일링",
+            "description": "합성 음성 품질 평가 및 실시간 처리 성능 측정 도구 구현",
+            "dependencies": [
+              "7.5"
+            ],
+            "details": "원본 대비 재합성 정확도 측정(PSNR, MCD), 실시간 처리 FPS 측정, CPU 사용률 프로파일링, 메모리 사용량 모니터링, 품질-성능 트레이드오프 분석 도구",
+            "status": "pending",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "UTAU 리샘플러 인터페이스 구현",
+        "description": "표준 UTAU 명령행 인터페이스 구현, 기존 리샘플러와 100% 호환되는 드롭인 대체품 제공",
+        "details": "UTAU 표준 인자 파싱: 입력 WAV, 출력 WAV, 피치, 속도, 플래그 등. moresampler 호환 명령행 형식 지원. 기본 g, t 플래그 해석 및 파라미터 변환. 에러 핸들링 및 적절한 exit code 반환. 로깅 시스템 구현. Windows 경로 및 인코딩 호환성.",
+        "testStrategy": "기존 UTAU 프로젝트에서 드롭인 교체 테스트, 다양한 플래그 조합 검증, OpenUTAU 호환성 확인",
+        "priority": "high",
+        "dependencies": [
+          7
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "UTAU 표준 명령행 인자 파서 구현",
+            "description": "UTAU/moresampler 호환 명령행 인자 파싱기 구현: 입력/출력 WAV 경로, 피치, 속도, g/t 플래그 등 표준 인자를 정확히 해석하고 내부 파라미터로 변환",
+            "dependencies": [],
+            "details": "getopt_long 기반 파서 설계, Windows 경로(백슬래시/공백 포함) 처리, UTF-8/CP949 인코딩 대응, 필수/선택 인자 검증, usage 메시지 출력",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "플래그 및 파라미터 변환 모듈 구현",
+            "description": "g(성장), t(성대) 등 UTAU 표준 플래그를 NexusSynth 내부 파라미터로 정확히 매핑하고 변환하는 모듈 구현",
+            "dependencies": [
+              "8.1"
+            ],
+            "details": "플래그 문자열 파싱 규칙 정의, 기본값 처리, 범위 검증, 변환 오류 시 graceful degradation, 변환 로그 기록",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "에러 핸들링 및 Exit Code 시스템 구현",
+            "description": "UTAU 표준에 맞는 에러 코드 정의 및 적절한 exit code 반환 체계 구현, 모든 예외 상황에 대한 처리 보장",
+            "dependencies": [
+              "8.1",
+              "8.2"
+            ],
+            "details": "표준 errno 매핑, 사용자 친화적 에러 메시지, 파일 입출력 오류, 파라미터 오류, 내부 처리 오류 구분, exit code 0-255 범위 준수",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "로깅 시스템 구현",
+            "description": "UTAU 리샘플러 표준 출력/에러 출력을 위한 구조화된 로깅 시스템 구현, 디버그/릴리즈 모드 지원",
+            "dependencies": [
+              "8.1"
+            ],
+            "details": "타임스탬프 포함 로그 포맷, 로그 레벨(DEBUG/INFO/WARN/ERROR), 파일/콘솔 출력 동시 지원, Windows 콘솔 색상 코드 처리, 로그 회전 설정",
+            "status": "pending",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "보이스뱅크 컨디셔닝 도구 구현",
+        "description": "UTAU 보이스뱅크를 NexusSynth .nvm 모델로 변환하는 오프라인 전처리 도구 구현",
+        "details": "독립 실행 가능한 변환 도구 제작. UTAU 보이스뱅크 디렉토리 스캔, oto.ini 및 WAV 파일 일괄 처리. 진행률 표시 및 변환 로그. 변환 품질 검증 및 오류 리포트. 배치 처리 지원. .nvm 파일 크기 최적화. 설정 파일로 변환 옵션 제어.",
+        "testStrategy": "다양한 UTAU 보이스뱅크 변환 테스트, 변환 시간 및 파일 크기 측정, 변환된 모델의 합성 품질 검증",
+        "priority": "medium",
+        "dependencies": [
+          8
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "UTAU 보이스뱅크 디렉토리 스캐너 구현",
+            "description": "oto.ini 및 WAV 파일을 재귀적으로 탐색하여 유효한 UTAU 보이스뱅크 구조를 검증하고 파일 목록을 생성",
+            "dependencies": [],
+            "details": "디렉토리 트리 순회 알고리즘 구현, oto.ini 파일 존재 여부 확인, WAV 파일 포맷 검증(44.1kHz/16bit), Shift-JIS/UTF-8 인코딩 자동 감지, 잘못된 파일 구조에 대한 오류 메시지 생성",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "일괄 처리 엔진 및 진행률 표시 구현",
+            "description": "다중 스레드 기반 일괄 변환 처리 및 실시간 진행률 표시 시스템 구현",
+            "dependencies": [
+              "9.1"
+            ],
+            "details": "작업 큐 기반 스레드 풀 구현, CPU 코어 수에 따른 동적 스레드 할당, 진행률 콜백 인터페이스 설계, 예상 남은 시간 계산, 중단/재개 기능 지원, 메모리 사용량 모니터링",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "변환 품질 검증 및 오류 리포트 시스템",
+            "description": "변환된 .nvm 파일의 무결성 검사 및 상세 오류 리포트 생성 기능 구현",
+            "dependencies": [
+              "9.2"
+            ],
+            "details": ".nvm 파일 구조 검증, 파라미터 값 범위 체크, 누락된 음소 감지, 오류 로그 JSON 포맷 저장, 시각적 오류 요약 리포트 생성, 변환 실패 원인 분석 및 제안사항 제공",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "설정 파일 처리 및 변환 옵션 제어",
+            "description": "JSON 기반 설정 파일 파싱 및 변환 프로세스의 동작을 제어하는 옵션 시스템 구현",
+            "dependencies": [],
+            "details": "cJSON 라이브러리를 활용한 설정 파일 스키마 정의, 오디오 품질 설정(샘플레이트, 비트레이트), 최적화 수준 조절, 배치 크기 설정, 로그 레벨 제어, 기본값 제공 및 설정 파일 자동 생성 기능",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "CLI 인터페이스 및 배치 처리 스크립트 통합",
+            "description": "명령행 인터페이스 구현 및 대량 변환을 위한 배치 스크립트 템플릿 제공",
+            "dependencies": [
+              "9.3",
+              "9.4"
+            ],
+            "details": "인자 파싱 라이브러리 사용, 입력/출력 경로 지정 옵션, 자동 폴더 구조 유지, 로그 파일 자동 저장, Windows .bat 및 Linux .sh 배치 스크립트 템플릿 제공, 드래그앤드롭 지원",
+            "status": "pending",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "통합 테스트 및 성능 벤치마크 구현",
+        "description": "전체 시스템 통합 테스트, 기존 리샘플러와의 성능/품질 비교 벤치마크 구현",
+        "details": "자동화된 테스트 스위트 구성: 다양한 보이스뱅크로 end-to-end 테스트. 기존 moresampler와 A/B 품질 비교 도구. 렌더링 속도, 메모리 사용량 벤치마크. 피치 변환 품질 평가(포르만트 보존). 단위 테스트 및 통합 테스트 자동화. CI/CD 파이프라인 구성. 성능 회귀 방지 체크.",
+        "testStrategy": "실제 UTAU 프로젝트에서 품질/성능 검증, 커뮤니티 베타 테스트 준비, 벤치마크 결과 문서화",
+        "priority": "medium",
+        "dependencies": [
+          9
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "자동화 테스트 스위트 설계 및 구성",
+            "description": "다양한 보이스뱅크를 활용한 end-to-end 통합 테스트 스위트를 설계하고 구성합니다.",
+            "dependencies": [],
+            "details": "표준 UTAU 보이스뱅크 5종 이상 선정, 테스트 시나리오 정의(노멀/고음/저음/빠른속도/느린속도), 입력 WAV/예상 출력 쌍 준비, 테스트 데이터셋 구성, 테스트 실행 환경 설정",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "A/B 품질 비교 도구 구현",
+            "description": "기존 moresampler와 NexusSynth의 품질을 객관적으로 비교할 수 있는 도구를 구현합니다.",
+            "dependencies": [
+              "10.1"
+            ],
+            "details": "음성 품질 메트릭 정의(MCD, F0 RMSE, 유사도 점수), 자동 비교 파이프라인 구축, 시각적 결과 리포트 생성, 통계적 유의성 검정 기능, 배치 모드 지원",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "성능 벤치마크 프레임워크 개발",
+            "description": "렌더링 속도, 메모리 사용량, 피치 변환 품질을 측정하는 벤치마크 프레임워크를 개발합니다.",
+            "dependencies": [
+              "10.1"
+            ],
+            "details": "마이크로 벤치마크용 타이머 구현, 메모리 프로파일링 도구 통합, 포르만트 보존률 측정 알고리즘, 다중 스레드 성능 테스트, 결과 데이터 수집 및 저장 시스템",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "CI/CD 파이프라인 구성",
+            "description": "GitHub Actions 기반 CI/CD 파이프라인을 구성하여 자동화된 테스트와 배포를 수행합니다.",
+            "dependencies": [
+              "10.1",
+              "10.2",
+              "10.3"
+            ],
+            "details": "GitHub Actions 워크플로우 작성, Windows/Linux/macOS 멀티 플랫폼 빌드, 자동 단위/통합 테스트 실행, 벤치마크 결과 자동 측정 및 보고, 릴리즈 자동화",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "성능 회귀 감지 시스템 구축",
+            "description": "성능 저하를 자동으로 감지하고 알림을 제공하는 회귀 방지 시스템을 구축합니다.",
+            "dependencies": [
+              "10.3",
+              "10.4"
+            ],
+            "details": "기준 성능 데이터베이스 구축, 임계값 기반 회귀 감지 알고리즘, PR 시 자동 성능 비교 리포트, Slack/이메일 알림 연동, 성능 추이 대시보드 구현",
+            "status": "pending",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "테스트 결과 문서화 및 가이드 작성",
+            "description": "테스트 결과와 사용 가이드를 체계적으로 문서화하여 커뮤니티에 제공합니다.",
+            "dependencies": [
+              "10.2",
+              "10.3",
+              "10.4",
+              "10.5"
+            ],
+            "details": "벤치마크 결과 리포트 템플릿 작성, 테스트 실행 가이드 문서, 성능 최적화 권장사항, FAQ 및 트러블슈팅 가이드, 커뮤니티 베타 테스트 참여 안내",
+            "status": "pending",
+            "testStrategy": ""
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "created": "2025-08-16T15:50:51.347Z",
+      "updated": "2025-08-16T15:50:51.347Z",
+      "description": "Tasks for master context"
+    }
+  }
+}
