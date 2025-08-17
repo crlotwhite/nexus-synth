@@ -78,3 +78,11 @@ set_target_properties(test_compression_checksum PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
 )
+
+# Create version management test executable
+add_executable(test_version_management test_version_management.cpp)
+target_link_libraries(test_version_management nexussynth_lib)
+set_target_properties(test_version_management PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+)

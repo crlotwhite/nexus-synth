@@ -9,6 +9,7 @@
 #include <type_traits>
 #include <stdexcept>
 #include <functional>
+#include <map>
 #include "hmm_structures.h"
 #include "voice_metadata.h"
 #include "gaussian_mixture.h"
@@ -28,6 +29,20 @@ namespace nvm {
         constexpr uint32_t MAGIC_NUMBER = 0x314D564E;  // 'NVM1' in little-endian
         constexpr uint32_t CURRENT_VERSION = 0x00010000; // Version 1.0.0
         constexpr uint32_t MIN_SUPPORTED_VERSION = 0x00010000;
+        
+        // Version management constants
+        constexpr uint32_t VERSION_MAJOR_MASK = 0xFFFF0000;
+        constexpr uint32_t VERSION_MINOR_MASK = 0x0000FF00;
+        constexpr uint32_t VERSION_PATCH_MASK = 0x000000FF;
+        constexpr int VERSION_MAJOR_SHIFT = 16;
+        constexpr int VERSION_MINOR_SHIFT = 8;
+        constexpr int VERSION_PATCH_SHIFT = 0;
+        
+        // Known version milestones
+        constexpr uint32_t VERSION_1_0_0 = 0x00010000;  // Initial release
+        constexpr uint32_t VERSION_1_1_0 = 0x00010100;  // Enhanced compression support
+        constexpr uint32_t VERSION_1_2_0 = 0x00010200;  // Extended metadata
+        constexpr uint32_t VERSION_2_0_0 = 0x00020000;  // Breaking changes (future)
         
         // Chunk type identifiers
         constexpr uint32_t CHUNK_HEADER = 0x52444548;     // 'HEDR'
@@ -478,6 +493,244 @@ namespace nvm {
     };
 
     /**
+     * @brief Semantic version structure for version management
+     * 
+     * Implements semantic versioning (major.minor.patch) for .nvm files
+     * with compatibility checking and migration support
+     */
+    struct SemanticVersion {
+        uint16_t major;
+        uint8_t minor;
+        uint8_t patch;
+        
+        SemanticVersion() : major(1), minor(0), patch(0) {}
+        SemanticVersion(uint16_t maj, uint8_t min, uint8_t pat) 
+            : major(maj), minor(min), patch(pat) {}
+        SemanticVersion(uint32_t packed_version) {
+            major = (packed_version & constants::VERSION_MAJOR_MASK) >> constants::VERSION_MAJOR_SHIFT;
+            minor = (packed_version & constants::VERSION_MINOR_MASK) >> constants::VERSION_MINOR_SHIFT;
+            patch = (packed_version & constants::VERSION_PATCH_MASK) >> constants::VERSION_PATCH_SHIFT;
+        }
+        
+        // Conversion methods
+        uint32_t to_uint32() const {
+            return (static_cast<uint32_t>(major) << constants::VERSION_MAJOR_SHIFT) |
+                   (static_cast<uint32_t>(minor) << constants::VERSION_MINOR_SHIFT) |
+                   (static_cast<uint32_t>(patch) << constants::VERSION_PATCH_SHIFT);
+        }
+        
+        std::string to_string() const {
+            return std::to_string(major) + "." + std::to_string(minor) + "." + std::to_string(patch);
+        }
+        
+        static SemanticVersion from_string(const std::string& version_str);
+        
+        // Comparison operators
+        bool operator==(const SemanticVersion& other) const {
+            return major == other.major && minor == other.minor && patch == other.patch;
+        }
+        
+        bool operator!=(const SemanticVersion& other) const {
+            return !(*this == other);
+        }
+        
+        bool operator<(const SemanticVersion& other) const {
+            if (major != other.major) return major < other.major;
+            if (minor != other.minor) return minor < other.minor;
+            return patch < other.patch;
+        }
+        
+        bool operator<=(const SemanticVersion& other) const {
+            return *this < other || *this == other;
+        }
+        
+        bool operator>(const SemanticVersion& other) const {
+            return !(*this <= other);
+        }
+        
+        bool operator>=(const SemanticVersion& other) const {
+            return !(*this < other);
+        }
+        
+        // Compatibility checks
+        bool is_compatible_with(const SemanticVersion& other) const {
+            return major == other.major;  // Same major version = compatible
+        }
+        
+        bool is_backward_compatible_with(const SemanticVersion& older) const {
+            return major == older.major && *this >= older;
+        }
+        
+        bool is_forward_compatible_with(const SemanticVersion& newer) const {
+            return major == newer.major && *this <= newer;
+        }
+    };
+
+    /**
+     * @brief Version migration interface for handling format changes
+     * 
+     * Provides standardized interface for migrating data between
+     * different versions of the .nvm file format
+     */
+    class VersionMigrator {
+    public:
+        virtual ~VersionMigrator() = default;
+        
+        // Migration capabilities
+        virtual bool can_migrate_from(const SemanticVersion& from_version) const = 0;
+        virtual bool can_migrate_to(const SemanticVersion& to_version) const = 0;
+        
+        // Data migration
+        virtual std::vector<uint8_t> migrate_chunk_data(
+            const std::vector<uint8_t>& input_data,
+            uint32_t chunk_type,
+            const SemanticVersion& from_version,
+            const SemanticVersion& to_version) = 0;
+        
+        // Header migration
+        virtual FileHeader migrate_header(
+            const FileHeader& input_header,
+            const SemanticVersion& from_version,
+            const SemanticVersion& to_version) = 0;
+        
+        // Factory method
+        static std::unique_ptr<VersionMigrator> create_migrator(
+            const SemanticVersion& from_version,
+            const SemanticVersion& to_version);
+    };
+
+    /**
+     * @brief Backward compatibility matrix for version management
+     * 
+     * Manages compatibility information and migration strategies
+     * between different versions of the .nvm format
+     */
+    class CompatibilityMatrix {
+    public:
+        struct CompatibilityInfo {
+            bool fully_compatible;      // No migration needed
+            bool backward_compatible;   // Can read newer files with older code
+            bool forward_compatible;    // Can read older files with newer code
+            bool migration_available;   // Migration path exists
+            std::string notes;          // Additional compatibility notes
+        };
+        
+        CompatibilityMatrix();
+        
+        // Compatibility checking
+        CompatibilityInfo check_compatibility(
+            const SemanticVersion& current_version,
+            const SemanticVersion& target_version) const;
+        
+        // Migration planning
+        std::vector<SemanticVersion> get_migration_path(
+            const SemanticVersion& from_version,
+            const SemanticVersion& to_version) const;
+        
+        bool is_migration_safe(
+            const SemanticVersion& from_version,
+            const SemanticVersion& to_version) const;
+        
+        // Deprecated field management
+        std::vector<std::string> get_deprecated_fields(const SemanticVersion& version) const;
+        std::vector<std::string> get_removed_fields(const SemanticVersion& version) const;
+        std::vector<std::string> get_added_fields(const SemanticVersion& version) const;
+        
+        // Version registration
+        void register_version(const SemanticVersion& version, const CompatibilityInfo& info);
+        
+    private:
+        std::map<std::pair<SemanticVersion, SemanticVersion>, CompatibilityInfo> compatibility_map_;
+        std::map<SemanticVersion, std::vector<std::string>> deprecated_fields_;
+        std::map<SemanticVersion, std::vector<std::string>> removed_fields_;
+        std::map<SemanticVersion, std::vector<std::string>> added_fields_;
+        
+        void initialize_default_compatibility();
+    };
+
+    /**
+     * @brief Deprecated field handler for graceful format evolution
+     * 
+     * Manages deprecated fields and provides strategies for handling
+     * them during file reading/writing operations
+     */
+    class DeprecatedFieldHandler {
+    public:
+        enum class DeprecationStrategy {
+            Ignore,      // Skip deprecated fields silently
+            Warn,        // Log warnings but continue processing
+            Error,       // Treat as error and fail
+            Preserve,    // Keep deprecated fields for compatibility
+            Convert      // Convert to new format automatically
+        };
+        
+        DeprecatedFieldHandler(DeprecationStrategy strategy = DeprecationStrategy::Warn);
+        
+        // Field handling
+        bool should_read_field(const std::string& field_name, const SemanticVersion& version) const;
+        bool should_write_field(const std::string& field_name, const SemanticVersion& version) const;
+        
+        // Warning and error handling
+        void handle_deprecated_field(const std::string& field_name, const SemanticVersion& version) const;
+        void handle_removed_field(const std::string& field_name, const SemanticVersion& version) const;
+        
+        // Strategy management
+        void set_strategy(DeprecationStrategy strategy) { strategy_ = strategy; }
+        DeprecationStrategy get_strategy() const { return strategy_; }
+        
+    private:
+        DeprecationStrategy strategy_;
+        mutable std::vector<std::string> warned_fields_;  // Track warned fields to avoid spam
+    };
+
+    /**
+     * @brief Version management utility class
+     * 
+     * Provides high-level version management functionality for .nvm files
+     * including automatic upgrades, downgrades, and compatibility checking
+     */
+    class VersionManager {
+    public:
+        VersionManager();
+        
+        // Version detection
+        static SemanticVersion detect_file_version(const std::string& filename);
+        static SemanticVersion get_current_version() { return SemanticVersion(constants::CURRENT_VERSION); }
+        static SemanticVersion get_minimum_supported_version() { return SemanticVersion(constants::MIN_SUPPORTED_VERSION); }
+        
+        // Compatibility checking
+        bool is_version_supported(const SemanticVersion& version) const;
+        bool can_read_version(const SemanticVersion& version) const;
+        bool can_write_version(const SemanticVersion& version) const;
+        
+        // Automatic conversion
+        bool upgrade_file(const std::string& filename, const SemanticVersion& target_version);
+        bool downgrade_file(const std::string& filename, const SemanticVersion& target_version);
+        bool convert_file(const std::string& input_filename, const std::string& output_filename, const SemanticVersion& target_version);
+        
+        // Migration utilities
+        std::vector<uint8_t> migrate_data(
+            const std::vector<uint8_t>& input_data,
+            const SemanticVersion& from_version,
+            const SemanticVersion& to_version);
+        
+        // Configuration
+        void set_deprecation_strategy(DeprecatedFieldHandler::DeprecationStrategy strategy);
+        void enable_automatic_migration(bool enabled) { auto_migration_enabled_ = enabled; }
+        void set_backup_on_upgrade(bool enabled) { backup_on_upgrade_ = enabled; }
+        
+    private:
+        CompatibilityMatrix compatibility_matrix_;
+        DeprecatedFieldHandler deprecated_handler_;
+        bool auto_migration_enabled_;
+        bool backup_on_upgrade_;
+        
+        // Internal migration helpers
+        bool perform_migration(const std::string& filename, const SemanticVersion& target_version);
+        std::string create_backup_filename(const std::string& filename);
+    };
+
+    /**
      * @brief Exception classes for compression and checksum errors
      */
     class CompressionException : public std::runtime_error {
@@ -490,6 +743,18 @@ namespace nvm {
     public:
         explicit ChecksumException(const std::string& message) 
             : std::runtime_error("Checksum verification failed: " + message) {}
+    };
+
+    class VersionException : public std::runtime_error {
+    public:
+        explicit VersionException(const std::string& message) 
+            : std::runtime_error("Version error: " + message) {}
+    };
+
+    class MigrationException : public std::runtime_error {
+    public:
+        explicit MigrationException(const std::string& message) 
+            : std::runtime_error("Migration error: " + message) {}
     };
 
     /**
@@ -506,10 +771,20 @@ namespace nvm {
         bool validate_model_data(const SerializedModel& model);
         std::vector<std::string> check_model_consistency(const std::vector<SerializedModel>& models);
         
-        // Version compatibility
+        // Version compatibility (enhanced)
         bool is_version_supported(uint32_t version);
+        bool is_version_supported(const SemanticVersion& version);
         std::string version_to_string(uint32_t version);
         uint32_t version_from_string(const std::string& version_str);
+        
+        // Version migration validation
+        bool validate_migration_path(const SemanticVersion& from_version, const SemanticVersion& to_version);
+        bool can_migrate_safely(const SemanticVersion& from_version, const SemanticVersion& to_version);
+        std::vector<std::string> check_migration_risks(const SemanticVersion& from_version, const SemanticVersion& to_version);
+        
+        // Backward compatibility checks
+        bool test_backward_compatibility(const std::string& newer_file, const SemanticVersion& older_version);
+        bool test_forward_compatibility(const std::string& older_file, const SemanticVersion& newer_version);
         
         // Compression and checksum validation
         bool verify_compression_support(uint32_t compression_type);

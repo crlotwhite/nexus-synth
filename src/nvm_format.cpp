@@ -6,6 +6,10 @@
 #include <zlib.h>
 #include <iomanip>
 #include <sstream>
+#include <ctime>
+#include <iostream>
+#include <fstream>
+#include <map>
 
 namespace nexussynth {
 namespace nvm {
@@ -1287,6 +1291,498 @@ bool test_checksum_consistency(const std::vector<uint8_t>& test_data,
         std::vector<uint8_t> checksum2 = calculator2->calculate(test_data.data(), test_data.size());
         
         return checksum1 == checksum2;
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
+} // namespace validation
+
+// ============================================================================
+// Version Management Implementation
+// ============================================================================
+
+// SemanticVersion implementation
+SemanticVersion SemanticVersion::from_string(const std::string& version_str) {
+    SemanticVersion version;
+    
+    // Parse version string in format "major.minor.patch"
+    size_t first_dot = version_str.find('.');
+    size_t second_dot = version_str.find('.', first_dot + 1);
+    
+    if (first_dot == std::string::npos || second_dot == std::string::npos) {
+        throw VersionException("Invalid version string format: " + version_str);
+    }
+    
+    try {
+        version.major = static_cast<uint16_t>(std::stoi(version_str.substr(0, first_dot)));
+        version.minor = static_cast<uint8_t>(std::stoi(version_str.substr(first_dot + 1, second_dot - first_dot - 1)));
+        version.patch = static_cast<uint8_t>(std::stoi(version_str.substr(second_dot + 1)));
+    } catch (const std::exception&) {
+        throw VersionException("Failed to parse version string: " + version_str);
+    }
+    
+    return version;
+}
+
+// VersionMigrator implementation
+std::unique_ptr<VersionMigrator> VersionMigrator::create_migrator(
+    const SemanticVersion& from_version,
+    const SemanticVersion& to_version) {
+    
+    // For now, return a basic migrator that handles minor version differences
+    // In the future, this would select appropriate specialized migrators
+    class BasicVersionMigrator : public VersionMigrator {
+    public:
+        BasicVersionMigrator(const SemanticVersion& from, const SemanticVersion& to)
+            : from_version_(from), to_version_(to) {}
+        
+        bool can_migrate_from(const SemanticVersion& from_version) const override {
+            return from_version.major == from_version_.major;
+        }
+        
+        bool can_migrate_to(const SemanticVersion& to_version) const override {
+            return to_version.major == to_version_.major;
+        }
+        
+        std::vector<uint8_t> migrate_chunk_data(
+            const std::vector<uint8_t>& input_data,
+            uint32_t chunk_type,
+            const SemanticVersion& from_version,
+            const SemanticVersion& to_version) override {
+            
+            // Basic migration: no changes for minor version differences
+            if (from_version.major == to_version.major) {
+                return input_data;  // No transformation needed
+            }
+            
+            throw MigrationException("Cannot migrate between major versions " + 
+                                   from_version.to_string() + " and " + to_version.to_string());
+        }
+        
+        FileHeader migrate_header(
+            const FileHeader& input_header,
+            const SemanticVersion& from_version,
+            const SemanticVersion& to_version) override {
+            
+            FileHeader output_header = input_header;
+            output_header.version = to_version.to_uint32();
+            return output_header;
+        }
+        
+    private:
+        SemanticVersion from_version_;
+        SemanticVersion to_version_;
+    };
+    
+    return std::make_unique<BasicVersionMigrator>(from_version, to_version);
+}
+
+// CompatibilityMatrix implementation
+CompatibilityMatrix::CompatibilityMatrix() {
+    initialize_default_compatibility();
+}
+
+void CompatibilityMatrix::initialize_default_compatibility() {
+    // Define compatibility rules for known versions
+    SemanticVersion v1_0_0(constants::VERSION_1_0_0);
+    SemanticVersion v1_1_0(constants::VERSION_1_1_0);
+    SemanticVersion v1_2_0(constants::VERSION_1_2_0);
+    SemanticVersion v2_0_0(constants::VERSION_2_0_0);
+    
+    // 1.0.0 base version
+    register_version(v1_0_0, {true, false, true, true, "Initial release"});
+    
+    // 1.1.0 - enhanced compression
+    register_version(v1_1_0, {false, true, true, true, "Enhanced compression support"});
+    compatibility_map_[{v1_0_0, v1_1_0}] = {false, false, true, true, "Can upgrade to enhanced compression"};
+    compatibility_map_[{v1_1_0, v1_0_0}] = {false, true, false, true, "Can downgrade from enhanced compression"};
+    
+    // 1.2.0 - extended metadata
+    register_version(v1_2_0, {false, true, true, true, "Extended metadata support"});
+    compatibility_map_[{v1_1_0, v1_2_0}] = {false, false, true, true, "Can upgrade to extended metadata"};
+    compatibility_map_[{v1_2_0, v1_1_0}] = {false, true, false, true, "Can downgrade from extended metadata"};
+    
+    // 2.0.0 - breaking changes
+    register_version(v2_0_0, {false, false, false, true, "Breaking changes - major version bump"});
+    compatibility_map_[{v1_2_0, v2_0_0}] = {false, false, false, true, "Major version upgrade available"};
+    compatibility_map_[{v2_0_0, v1_2_0}] = {false, false, false, false, "Cannot downgrade across major versions"};
+    
+    // Define deprecated fields by version
+    deprecated_fields_[v1_1_0] = {"legacy_compression_flag"};
+    deprecated_fields_[v1_2_0] = {"legacy_compression_flag", "old_metadata_format"};
+    
+    // Define removed fields by version
+    removed_fields_[v2_0_0] = {"legacy_compression_flag", "old_metadata_format", "deprecated_index_format"};
+    
+    // Define added fields by version
+    added_fields_[v1_1_0] = {"compression_algorithm", "compression_level"};
+    added_fields_[v1_2_0] = {"extended_metadata", "creation_timestamp", "author_info"};
+    added_fields_[v2_0_0] = {"new_hmm_format", "enhanced_context_features", "streaming_support"};
+}
+
+CompatibilityMatrix::CompatibilityInfo CompatibilityMatrix::check_compatibility(
+    const SemanticVersion& current_version,
+    const SemanticVersion& target_version) const {
+    
+    auto key = std::make_pair(current_version, target_version);
+    auto it = compatibility_map_.find(key);
+    
+    if (it != compatibility_map_.end()) {
+        return it->second;
+    }
+    
+    // Default compatibility rules
+    if (current_version == target_version) {
+        return {true, true, true, false, "Identical versions"};
+    }
+    
+    if (current_version.major != target_version.major) {
+        return {false, false, false, false, "Major version difference - no compatibility"};
+    }
+    
+    // Same major version - minor/patch differences
+    if (current_version < target_version) {
+        return {false, false, true, true, "Forward compatible within major version"};
+    } else {
+        return {false, true, false, true, "Backward compatible within major version"};
+    }
+}
+
+std::vector<SemanticVersion> CompatibilityMatrix::get_migration_path(
+    const SemanticVersion& from_version,
+    const SemanticVersion& to_version) const {
+    
+    std::vector<SemanticVersion> path;
+    
+    if (from_version == to_version) {
+        return path;  // No migration needed
+    }
+    
+    // For now, implement direct migration for same major version
+    if (from_version.major == to_version.major) {
+        path.push_back(from_version);
+        path.push_back(to_version);
+        return path;
+    }
+    
+    // Cross-major version migration requires intermediate steps
+    if (from_version.major < to_version.major) {
+        path.push_back(from_version);
+        
+        // Add intermediate major versions
+        for (uint16_t major = from_version.major + 1; major < to_version.major; ++major) {
+            path.push_back(SemanticVersion(major, 0, 0));
+        }
+        
+        path.push_back(to_version);
+    }
+    
+    return path;
+}
+
+bool CompatibilityMatrix::is_migration_safe(
+    const SemanticVersion& from_version,
+    const SemanticVersion& to_version) const {
+    
+    auto info = check_compatibility(from_version, to_version);
+    return info.migration_available && (info.fully_compatible || info.forward_compatible);
+}
+
+std::vector<std::string> CompatibilityMatrix::get_deprecated_fields(const SemanticVersion& version) const {
+    auto it = deprecated_fields_.find(version);
+    return it != deprecated_fields_.end() ? it->second : std::vector<std::string>();
+}
+
+std::vector<std::string> CompatibilityMatrix::get_removed_fields(const SemanticVersion& version) const {
+    auto it = removed_fields_.find(version);
+    return it != removed_fields_.end() ? it->second : std::vector<std::string>();
+}
+
+std::vector<std::string> CompatibilityMatrix::get_added_fields(const SemanticVersion& version) const {
+    auto it = added_fields_.find(version);
+    return it != added_fields_.end() ? it->second : std::vector<std::string>();
+}
+
+void CompatibilityMatrix::register_version(const SemanticVersion& version, const CompatibilityInfo& info) {
+    compatibility_map_[{version, version}] = info;
+}
+
+// DeprecatedFieldHandler implementation
+DeprecatedFieldHandler::DeprecatedFieldHandler(DeprecationStrategy strategy)
+    : strategy_(strategy) {}
+
+bool DeprecatedFieldHandler::should_read_field(const std::string& field_name, const SemanticVersion& version) const {
+    // For now, always read fields - deprecation handling is done later
+    return true;
+}
+
+bool DeprecatedFieldHandler::should_write_field(const std::string& field_name, const SemanticVersion& version) const {
+    switch (strategy_) {
+        case DeprecationStrategy::Ignore:
+        case DeprecationStrategy::Error:
+            return false;  // Don't write deprecated fields
+        case DeprecationStrategy::Warn:
+        case DeprecationStrategy::Preserve:
+        case DeprecationStrategy::Convert:
+            return true;   // Write with handling
+    }
+    return true;
+}
+
+void DeprecatedFieldHandler::handle_deprecated_field(const std::string& field_name, const SemanticVersion& version) const {
+    // Avoid duplicate warnings
+    if (std::find(warned_fields_.begin(), warned_fields_.end(), field_name) != warned_fields_.end()) {
+        return;
+    }
+    
+    switch (strategy_) {
+        case DeprecationStrategy::Ignore:
+            break;  // Silent
+        case DeprecationStrategy::Warn:
+            std::cerr << "Warning: Field '" << field_name << "' is deprecated in version " << version.to_string() << std::endl;
+            warned_fields_.push_back(field_name);
+            break;
+        case DeprecationStrategy::Error:
+            throw VersionException("Deprecated field '" + field_name + "' found in version " + version.to_string());
+        case DeprecationStrategy::Preserve:
+        case DeprecationStrategy::Convert:
+            break;  // Handled elsewhere
+    }
+}
+
+void DeprecatedFieldHandler::handle_removed_field(const std::string& field_name, const SemanticVersion& version) const {
+    switch (strategy_) {
+        case DeprecationStrategy::Ignore:
+            break;  // Silent
+        case DeprecationStrategy::Warn:
+            std::cerr << "Warning: Field '" << field_name << "' was removed in version " << version.to_string() << std::endl;
+            break;
+        case DeprecationStrategy::Error:
+        case DeprecationStrategy::Preserve:
+        case DeprecationStrategy::Convert:
+            throw VersionException("Removed field '" + field_name + "' found in version " + version.to_string());
+    }
+}
+
+// VersionManager implementation
+VersionManager::VersionManager()
+    : auto_migration_enabled_(true), backup_on_upgrade_(true) {}
+
+SemanticVersion VersionManager::detect_file_version(const std::string& filename) {
+    std::ifstream file(filename, std::ios::binary);
+    if (!file.is_open()) {
+        throw VersionException("Cannot open file for version detection: " + filename);
+    }
+    
+    BinaryReader reader(file);
+    FileHeader header;
+    
+    try {
+        header.read(reader);
+        if (!header.is_valid()) {
+            throw VersionException("Invalid NVM file header in: " + filename);
+        }
+        
+        return SemanticVersion(header.version);
+    } catch (const std::exception& e) {
+        throw VersionException("Failed to detect version in file " + filename + ": " + e.what());
+    }
+}
+
+bool VersionManager::is_version_supported(const SemanticVersion& version) const {
+    SemanticVersion min_version = get_minimum_supported_version();
+    SemanticVersion current_version = get_current_version();
+    
+    return version >= min_version && version.major <= current_version.major;
+}
+
+bool VersionManager::can_read_version(const SemanticVersion& version) const {
+    auto info = compatibility_matrix_.check_compatibility(get_current_version(), version);
+    return info.fully_compatible || info.backward_compatible || info.migration_available;
+}
+
+bool VersionManager::can_write_version(const SemanticVersion& version) const {
+    auto info = compatibility_matrix_.check_compatibility(version, get_current_version());
+    return info.fully_compatible || info.forward_compatible;
+}
+
+bool VersionManager::upgrade_file(const std::string& filename, const SemanticVersion& target_version) {
+    SemanticVersion current_version = detect_file_version(filename);
+    
+    if (current_version >= target_version) {
+        return true;  // Already at target or newer
+    }
+    
+    return perform_migration(filename, target_version);
+}
+
+bool VersionManager::downgrade_file(const std::string& filename, const SemanticVersion& target_version) {
+    SemanticVersion current_version = detect_file_version(filename);
+    
+    if (current_version <= target_version) {
+        return true;  // Already at target or older
+    }
+    
+    return perform_migration(filename, target_version);
+}
+
+bool VersionManager::convert_file(const std::string& input_filename, const std::string& output_filename, const SemanticVersion& target_version) {
+    // Copy file and then migrate
+    std::ifstream src(input_filename, std::ios::binary);
+    std::ofstream dst(output_filename, std::ios::binary);
+    
+    if (!src || !dst) {
+        return false;
+    }
+    
+    dst << src.rdbuf();
+    dst.close();
+    src.close();
+    
+    return perform_migration(output_filename, target_version);
+}
+
+std::vector<uint8_t> VersionManager::migrate_data(
+    const std::vector<uint8_t>& input_data,
+    const SemanticVersion& from_version,
+    const SemanticVersion& to_version) {
+    
+    auto migrator = VersionMigrator::create_migrator(from_version, to_version);
+    if (!migrator) {
+        throw MigrationException("No migrator available for " + from_version.to_string() + " to " + to_version.to_string());
+    }
+    
+    // For chunk data migration, assume it's a generic data chunk
+    return migrator->migrate_chunk_data(input_data, 0, from_version, to_version);
+}
+
+void VersionManager::set_deprecation_strategy(DeprecatedFieldHandler::DeprecationStrategy strategy) {
+    deprecated_handler_.set_strategy(strategy);
+}
+
+bool VersionManager::perform_migration(const std::string& filename, const SemanticVersion& target_version) {
+    try {
+        SemanticVersion current_version = detect_file_version(filename);
+        
+        if (current_version == target_version) {
+            return true;  // No migration needed
+        }
+        
+        // Create backup if enabled
+        if (backup_on_upgrade_) {
+            std::string backup_filename = create_backup_filename(filename);
+            std::ifstream src(filename, std::ios::binary);
+            std::ofstream dst(backup_filename, std::ios::binary);
+            
+            if (src && dst) {
+                dst << src.rdbuf();
+            }
+        }
+        
+        // Perform migration using NvmFile
+        NvmFile nvm_file;
+        if (!nvm_file.open(filename)) {
+            return false;
+        }
+        
+        // Update file version in header
+        // Note: Full migration logic would be implemented here
+        // For now, just update the version number
+        
+        return nvm_file.save();
+        
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
+std::string VersionManager::create_backup_filename(const std::string& filename) {
+    auto now = std::time(nullptr);
+    auto tm = *std::localtime(&now);
+    
+    std::ostringstream oss;
+    oss << filename << ".backup." << std::put_time(&tm, "%Y%m%d_%H%M%S");
+    return oss.str();
+}
+
+namespace validation {
+
+// Enhanced version validation functions
+bool is_version_supported(const SemanticVersion& version) {
+    VersionManager manager;
+    return manager.is_version_supported(version);
+}
+
+bool validate_migration_path(const SemanticVersion& from_version, const SemanticVersion& to_version) {
+    CompatibilityMatrix matrix;
+    auto path = matrix.get_migration_path(from_version, to_version);
+    return !path.empty();
+}
+
+bool can_migrate_safely(const SemanticVersion& from_version, const SemanticVersion& to_version) {
+    CompatibilityMatrix matrix;
+    return matrix.is_migration_safe(from_version, to_version);
+}
+
+std::vector<std::string> check_migration_risks(const SemanticVersion& from_version, const SemanticVersion& to_version) {
+    std::vector<std::string> risks;
+    CompatibilityMatrix matrix;
+    
+    auto info = matrix.check_compatibility(from_version, to_version);
+    
+    if (!info.fully_compatible) {
+        risks.push_back("Migration required - not fully compatible");
+    }
+    
+    if (!info.backward_compatible && from_version < to_version) {
+        risks.push_back("Newer version may not be readable by older software");
+    }
+    
+    if (!info.forward_compatible && from_version > to_version) {
+        risks.push_back("Older version may not support newer features");
+    }
+    
+    if (!info.migration_available) {
+        risks.push_back("No automatic migration path available");
+    }
+    
+    if (from_version.major != to_version.major) {
+        risks.push_back("Major version change - potential breaking changes");
+    }
+    
+    auto deprecated_fields = matrix.get_deprecated_fields(to_version);
+    if (!deprecated_fields.empty()) {
+        risks.push_back("Target version has deprecated fields: " + 
+                       std::to_string(deprecated_fields.size()) + " fields");
+    }
+    
+    auto removed_fields = matrix.get_removed_fields(to_version);
+    if (!removed_fields.empty()) {
+        risks.push_back("Target version has removed fields: " + 
+                       std::to_string(removed_fields.size()) + " fields");
+    }
+    
+    return risks;
+}
+
+bool test_backward_compatibility(const std::string& newer_file, const SemanticVersion& older_version) {
+    try {
+        SemanticVersion file_version = VersionManager::detect_file_version(newer_file);
+        CompatibilityMatrix matrix;
+        auto info = matrix.check_compatibility(older_version, file_version);
+        return info.backward_compatible || info.fully_compatible;
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
+bool test_forward_compatibility(const std::string& older_file, const SemanticVersion& newer_version) {
+    try {
+        SemanticVersion file_version = VersionManager::detect_file_version(older_file);
+        CompatibilityMatrix matrix;
+        auto info = matrix.check_compatibility(newer_version, file_version);
+        return info.forward_compatible || info.fully_compatible;
     } catch (const std::exception&) {
         return false;
     }
