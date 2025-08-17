@@ -323,8 +323,8 @@
             "title": "EM 알고리즘 기반 HMM 훈련 코어 구현",
             "description": "Baum-Welch 알고리즘을 포함한 EM 알고리즘의 기본 루프 구현, Forward-Backward 확률 계산 및 파라미터 재추정 로직 작성",
             "dependencies": [],
-            "details": "E-Step: Forward-Backward 알고리즘으로 상태 점유 확률 계산, M-Step: 가우시안 혼합 모델 파라미터(평균, 공분산, 혼합 가중치) 업데이트, 로그 우도 계산 및 수렴 판정 기준 구현",
-            "status": "pending",
+            "details": "E-Step: Forward-Backward 알고리즘으로 상태 점유 확률 계산, M-Step: 가우시안 혼합 모델 파라미터(평균, 공분산, 혼합 가중치) 업데이트, 로그 우도 계산 및 수렴 판정 기준 구현\n<info added on 2025-08-17T15:25:44.373Z>\n기존 가우시안 혼합 모델(GMM) 인프라와의 통합을 지원합니다.\n</info added on 2025-08-17T15:25:44.373Z>",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -778,7 +778,7 @@
     ],
     "metadata": {
       "created": "2025-08-16T15:50:51.347Z",
-      "updated": "2025-08-17T15:12:42.809Z",
+      "updated": "2025-08-17T15:25:07.500Z",
       "description": "Tasks for master context"
     }
   }
