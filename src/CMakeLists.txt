@@ -9,6 +9,7 @@ set(NEXUSSYNTH_LIB_SOURCES
     gaussian_mixture.cpp
     nvm_format.cpp
     utau_oto_parser.cpp
+    vcv_pattern_recognizer.cpp
 )
 
 # Create library
@@ -92,6 +93,14 @@ set_target_properties(test_version_management PROPERTIES
 add_executable(test_utau_oto_parser test_utau_oto_parser.cpp)
 target_link_libraries(test_utau_oto_parser nexussynth_lib)
 set_target_properties(test_utau_oto_parser PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+)
+
+# Create VCV pattern recognizer test executable
+add_executable(test_vcv_pattern_recognizer test_vcv_pattern_recognizer.cpp)
+target_link_libraries(test_vcv_pattern_recognizer nexussynth_lib)
+set_target_properties(test_vcv_pattern_recognizer PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
 )
