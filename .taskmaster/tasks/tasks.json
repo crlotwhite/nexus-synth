@@ -179,7 +179,7 @@
               "3.1"
             ],
             "details": "GaussianMixture 클래스: weights, components(std::vector<GaussianState>), log-likelihood 계산 메서드. EM 알고리즘 준비를 위한 충분 통계량 구조. 수치 안정성을 위한 로그 공간 연산 구현",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -221,7 +221,7 @@
             "description": "보이스뱅크 정보 및 샘플레이트 등 모델 메타데이터 구조체 정의",
             "dependencies": [],
             "details": "VoiceMetadata 구조체: voicebank name, author, sample rate, frame period, version. UTF-8 문자열 인코딩 표준. 선택적 필드: description, creation date, license. JSON 직렬화/역직렬화 메서드 포함",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -778,7 +778,7 @@
     ],
     "metadata": {
       "created": "2025-08-16T15:50:51.347Z",
-      "updated": "2025-08-17T04:34:02.088Z",
+      "updated": "2025-08-17T04:58:01.863Z",
       "description": "Tasks for master context"
     }
   }

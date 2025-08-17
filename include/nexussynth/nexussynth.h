@@ -4,6 +4,8 @@
 #include <memory>
 #include "hmm_structures.h"
 #include "context_features.h"
+#include "voice_metadata.h"
+#include "gaussian_mixture.h"
 
 namespace nexussynth {
     

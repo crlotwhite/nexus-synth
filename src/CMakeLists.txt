@@ -5,6 +5,8 @@ set(NEXUSSYNTH_LIB_SOURCES
     world_parameter_extractor.cpp
     audio_utils.cpp
     context_features.cpp
+    voice_metadata.cpp
+    gaussian_mixture.cpp
 )
 
 # Create library
@@ -19,6 +21,12 @@ set_target_properties(nexussynth_lib PROPERTIES
 # Add dependency include directories
 target_include_directories(nexussynth_lib PRIVATE 
     ${CMAKE_SOURCE_DIR}/external/WORLD/src
+    ${CMAKE_SOURCE_DIR}/external/cJSON
+)
+
+# Add include directories for public headers
+target_include_directories(nexussynth_lib PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/external/cJSON
 )
 

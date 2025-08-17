@@ -5,28 +5,11 @@
 #include <string>
 #include <Eigen/Core>
 #include <Eigen/Dense>
+#include "gaussian_mixture.h"
 
 namespace nexussynth {
 namespace hmm {
 
-    /**
-     * @brief Gaussian distribution parameters for HMM state emission
-     * 
-     * Represents a single Gaussian component with mean vector and 
-     * covariance matrix for HTS-style acoustic feature modeling
-     */
-    struct GaussianComponent {
-        Eigen::VectorXd mean;           // Mean vector (μ)
-        Eigen::MatrixXd covariance;     // Covariance matrix (Σ) 
-        double weight;                  // Mixture weight (for GMM)
-        
-        GaussianComponent() : weight(1.0) {}
-        
-        GaussianComponent(int dimension) 
-            : mean(Eigen::VectorXd::Zero(dimension))
-            , covariance(Eigen::MatrixXd::Identity(dimension, dimension))
-            , weight(1.0) {}
-    };
 
     /**
      * @brief State transition probabilities for HMM
@@ -59,30 +42,40 @@ namespace hmm {
      * @brief Single HMM state with Gaussian mixture output distribution
      * 
      * Represents one state in the HTS-style 5-state left-to-right HMM
-     * Each state models acoustic features using Gaussian mixtures
+     * Each state models acoustic features using advanced Gaussian mixtures
      */
     struct HmmState {
-        std::vector<GaussianComponent> gaussian_mixture;  // GMM components
-        StateTransition transition;                       // Transition probabilities
-        int state_id;                                     // Unique state identifier
+        GaussianMixture output_distribution;  // GMM for emission probabilities
+        StateTransition transition;           // Transition probabilities
+        int state_id;                        // Unique state identifier
         
         HmmState() : state_id(-1) {}
         
         explicit HmmState(int id, int num_mixtures = 1, int feature_dim = 39)
-            : state_id(id) {
-            gaussian_mixture.reserve(num_mixtures);
-            for (int i = 0; i < num_mixtures; ++i) {
-                gaussian_mixture.emplace_back(feature_dim);
-                gaussian_mixture.back().weight = 1.0 / num_mixtures;
-            }
+            : output_distribution(num_mixtures, feature_dim), state_id(id) {
         }
         
-        // Get total number of Gaussian components
-        size_t num_mixtures() const { return gaussian_mixture.size(); }
+        // Convenience methods
+        size_t num_mixtures() const { return output_distribution.num_components(); }
+        int feature_dimension() const { return output_distribution.dimension(); }
         
-        // Get feature vector dimension
-        int feature_dimension() const {
-            return gaussian_mixture.empty() ? 0 : gaussian_mixture[0].mean.size();
+        // Probability calculations
+        double log_emission_probability(const Eigen::VectorXd& observation) const {
+            return output_distribution.log_likelihood(observation);
+        }
+        
+        double emission_probability(const Eigen::VectorXd& observation) const {
+            return output_distribution.likelihood(observation);
+        }
+        
+        // Training support
+        double train_emissions(const std::vector<Eigen::VectorXd>& observations, int max_iterations = 50) {
+            return output_distribution.train_em(observations, max_iterations);
+        }
+        
+        // Sample generation
+        Eigen::VectorXd sample() const {
+            return output_distribution.sample();
         }
     };
 
