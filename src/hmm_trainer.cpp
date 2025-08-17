@@ -407,7 +407,7 @@ namespace hmm {
         
         // Collect weighted observations for each state
         for (int i = 0; i < N; ++i) {
-            std::vector<Eigen::VectorXd> weighted_observations;
+            std::vector<Eigen::VectorXd> observations;
             std::vector<double> weights;
             
             for (size_t seq_idx = 0; seq_idx < sequences.size(); ++seq_idx) {
@@ -418,17 +418,21 @@ namespace hmm {
                 for (int t = 0; t < T; ++t) {
                     double weight = fb_result.gamma(t, i);
                     if (weight > 1e-10) {  // Avoid numerical issues
-                        weighted_observations.push_back(sequence[t]);
+                        observations.push_back(sequence[t]);
                         weights.push_back(weight);
                     }
                 }
             }
             
-            // Train GMM for this state if we have observations
-            if (!weighted_observations.empty()) {
-                // For now, use simple EM on the GMM
-                // This could be enhanced to use the weights directly
-                model.states[i].train_emissions(weighted_observations);
+            // Train GMM for this state using weighted EM
+            if (!observations.empty()) {
+                if (weights.size() == observations.size()) {
+                    // Use proper weighted EM training with Forward-Backward posteriors
+                    model.states[i].train_weighted_emissions(observations, weights, 50);  // Use reasonable default for GMM EM
+                } else {
+                    // Fallback to regular EM if weights don't match
+                    model.states[i].train_emissions(observations, 50);
+                }
             }
         }
     }

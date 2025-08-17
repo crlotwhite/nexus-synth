@@ -192,6 +192,13 @@ namespace hmm {
         double em_step(const std::vector<Eigen::VectorXd>& observations);
         double train_em(const std::vector<Eigen::VectorXd>& observations, int max_iterations = 100, double tolerance = 1e-6);
         
+        // Weighted EM for HMM training
+        double weighted_em_step(const std::vector<Eigen::VectorXd>& observations,
+                               const std::vector<double>& observation_weights);
+        double train_weighted_em(const std::vector<Eigen::VectorXd>& observations, 
+                               const std::vector<double>& observation_weights,
+                               int max_iterations = 100, double tolerance = 1e-6);
+        
         // Model properties
         double aic(const std::vector<Eigen::VectorXd>& observations) const;  // Akaike Information Criterion
         double bic(const std::vector<Eigen::VectorXd>& observations) const;  // Bayesian Information Criterion
@@ -217,7 +224,14 @@ namespace hmm {
         
         // EM algorithm internals
         std::vector<SufficientStatistics> accumulate_statistics(const std::vector<Eigen::VectorXd>& observations) const;
+        std::vector<SufficientStatistics> accumulate_weighted_statistics(
+            const std::vector<Eigen::VectorXd>& observations,
+            const std::vector<double>& observation_weights) const;
         void update_parameters(const std::vector<SufficientStatistics>& statistics);
+        
+        // Weighted likelihood calculation
+        double weighted_log_likelihood_sequence(const std::vector<Eigen::VectorXd>& observations,
+                                               const std::vector<double>& observation_weights) const;
         
         // Numerical stability helpers
         double log_sum_exp(const std::vector<double>& log_values) const;

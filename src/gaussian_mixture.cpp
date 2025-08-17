@@ -462,6 +462,30 @@ double GaussianMixture::train_em(const std::vector<Eigen::VectorXd>& observation
     return log_likelihood;
 }
 
+double GaussianMixture::train_weighted_em(const std::vector<Eigen::VectorXd>& observations, 
+                                         const std::vector<double>& observation_weights,
+                                         int max_iterations, double tolerance) {
+    if (observations.empty() || observations.size() != observation_weights.size()) {
+        return 0.0;
+    }
+    
+    double prev_log_likelihood = log_likelihood_sequence(observations);
+    double log_likelihood = prev_log_likelihood;
+    
+    for (int iter = 0; iter < max_iterations; ++iter) {
+        log_likelihood = weighted_em_step(observations, observation_weights);
+        
+        // Check for convergence
+        if (std::abs(log_likelihood - prev_log_likelihood) < tolerance) {
+            break;
+        }
+        
+        prev_log_likelihood = log_likelihood;
+    }
+    
+    return log_likelihood;
+}
+
 bool GaussianMixture::is_valid() const {
     if (components_.size() != weights_.size()) {
         return false;
@@ -644,7 +668,302 @@ GaussianMixture create_duration_gmm(int num_components) {
     return create_diagonal_gmm(num_components, 1);   // Duration feature
 }
 
+GaussianMixture create_from_data(const std::vector<Eigen::VectorXd>& data, 
+                                int max_components, 
+                                const std::string& selection_criterion) {
+    if (data.empty()) {
+        return GaussianMixture();
+    }
+    
+    int best_components = 1;
+    double best_score = -std::numeric_limits<double>::infinity();
+    GaussianMixture best_model;
+    
+    // Try different numbers of components
+    for (int k = 1; k <= max_components; ++k) {
+        GaussianMixture model(k, data[0].size());
+        model.initialize_kmeans(data, k);
+        model.train_em(data, 50, 1e-4);
+        
+        double score;
+        if (selection_criterion == "aic") {
+            score = -model.aic(data);  // Negative because we want to maximize
+        } else { // "bic"
+            score = -model.bic(data);
+        }
+        
+        if (score > best_score) {
+            best_score = score;
+            best_components = k;
+            best_model = model;
+        }
+    }
+    
+    return best_model;
+}
+
 } // namespace gmm_factory
+
+// Missing implementation methods for GaussianMixture class
+
+void GaussianMixture::initialize_from_data(const std::vector<Eigen::VectorXd>& data, int num_components) {
+    if (data.empty()) {
+        throw std::invalid_argument("Cannot initialize from empty data");
+    }
+    
+    // Use K-means initialization
+    initialize_kmeans(data, num_components);
+}
+
+void GaussianMixture::initialize_kmeans(const std::vector<Eigen::VectorXd>& data, int num_components, int max_iterations) {
+    if (data.empty()) {
+        throw std::invalid_argument("Cannot initialize from empty data");
+    }
+    
+    dimension_ = data[0].size();
+    components_.clear();
+    weights_.clear();
+    components_.reserve(num_components);
+    weights_.reserve(num_components);
+    
+    // Run K-means clustering
+    std::vector<size_t> assignments = kmeans_clustering(data, num_components, max_iterations);
+    
+    // Initialize components based on cluster assignments
+    for (int k = 0; k < num_components; ++k) {
+        // Collect points assigned to cluster k
+        std::vector<Eigen::VectorXd> cluster_points;
+        for (size_t i = 0; i < data.size(); ++i) {
+            if (assignments[i] == k) {
+                cluster_points.push_back(data[i]);
+            }
+        }
+        
+        if (cluster_points.empty()) {
+            // If cluster is empty, initialize randomly
+            initialize_components_randomly(data, 1);
+            weights_.push_back(1.0 / num_components);
+        } else {
+            // Compute empirical mean and covariance
+            Eigen::VectorXd mean = Eigen::VectorXd::Zero(dimension_);
+            for (const auto& point : cluster_points) {
+                mean += point;
+            }
+            mean /= cluster_points.size();
+            
+            Eigen::MatrixXd covariance = Eigen::MatrixXd::Zero(dimension_, dimension_);
+            for (const auto& point : cluster_points) {
+                Eigen::VectorXd diff = point - mean;
+                covariance += diff * diff.transpose();
+            }
+            covariance /= cluster_points.size();
+            
+            // Add regularization to prevent singular matrices
+            covariance += MIN_VARIANCE * Eigen::MatrixXd::Identity(dimension_, dimension_);
+            
+            components_.emplace_back(mean, covariance, 1.0);
+            weights_.push_back(static_cast<double>(cluster_points.size()) / data.size());
+        }
+    }
+    
+    normalize_weights();
+}
+
+std::vector<size_t> GaussianMixture::kmeans_clustering(const std::vector<Eigen::VectorXd>& data, int num_clusters, int max_iterations) const {
+    if (data.empty() || num_clusters <= 0) {
+        return std::vector<size_t>();
+    }
+    
+    const int dimension = data[0].size();
+    std::vector<Eigen::VectorXd> centroids(num_clusters);
+    std::vector<size_t> assignments(data.size());
+    
+    // Initialize centroids randomly from data points
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, data.size() - 1);
+    
+    for (int k = 0; k < num_clusters; ++k) {
+        centroids[k] = data[dis(gen)];
+    }
+    
+    // K-means iterations
+    for (int iter = 0; iter < max_iterations; ++iter) {
+        bool changed = false;
+        
+        // Assignment step
+        for (size_t i = 0; i < data.size(); ++i) {
+            double min_distance = std::numeric_limits<double>::infinity();
+            size_t best_cluster = 0;
+            
+            for (int k = 0; k < num_clusters; ++k) {
+                double distance = (data[i] - centroids[k]).squaredNorm();
+                if (distance < min_distance) {
+                    min_distance = distance;
+                    best_cluster = k;
+                }
+            }
+            
+            if (assignments[i] != best_cluster) {
+                assignments[i] = best_cluster;
+                changed = true;
+            }
+        }
+        
+        if (!changed) {
+            break;  // Converged
+        }
+        
+        // Update centroids
+        std::vector<int> cluster_counts(num_clusters, 0);
+        std::vector<Eigen::VectorXd> new_centroids(num_clusters, Eigen::VectorXd::Zero(dimension));
+        
+        for (size_t i = 0; i < data.size(); ++i) {
+            int cluster = assignments[i];
+            new_centroids[cluster] += data[i];
+            cluster_counts[cluster]++;
+        }
+        
+        for (int k = 0; k < num_clusters; ++k) {
+            if (cluster_counts[k] > 0) {
+                centroids[k] = new_centroids[k] / cluster_counts[k];
+            }
+        }
+    }
+    
+    return assignments;
+}
+
+void GaussianMixture::initialize_components_randomly(const std::vector<Eigen::VectorXd>& data, int num_components) {
+    if (data.empty()) {
+        throw std::invalid_argument("Cannot initialize from empty data");
+    }
+    
+    dimension_ = data[0].size();
+    components_.clear();
+    weights_.clear();
+    components_.reserve(num_components);
+    weights_.reserve(num_components);
+    
+    // Compute data statistics
+    Eigen::VectorXd data_mean = Eigen::VectorXd::Zero(dimension_);
+    for (const auto& point : data) {
+        data_mean += point;
+    }
+    data_mean /= data.size();
+    
+    Eigen::MatrixXd data_cov = Eigen::MatrixXd::Zero(dimension_, dimension_);
+    for (const auto& point : data) {
+        Eigen::VectorXd diff = point - data_mean;
+        data_cov += diff * diff.transpose();
+    }
+    data_cov /= data.size();
+    
+    // Add regularization
+    data_cov += MIN_VARIANCE * Eigen::MatrixXd::Identity(dimension_, dimension_);
+    
+    // Initialize components randomly around data mean
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::normal_distribution<double> normal(0.0, 1.0);
+    
+    for (int i = 0; i < num_components; ++i) {
+        // Random perturbation of data mean
+        Eigen::VectorXd mean = data_mean;
+        for (int j = 0; j < dimension_; ++j) {
+            mean[j] += normal(gen) * std::sqrt(data_cov(j, j)) * 0.5;
+        }
+        
+        // Start with scaled-down data covariance
+        Eigen::MatrixXd covariance = data_cov * 0.5;
+        
+        components_.emplace_back(mean, covariance, 1.0);
+        weights_.push_back(1.0 / num_components);
+    }
+}
+
+double GaussianMixture::aic(const std::vector<Eigen::VectorXd>& observations) const {
+    double log_likelihood = log_likelihood_sequence(observations);
+    int num_params = effective_parameters();
+    return -2.0 * log_likelihood + 2.0 * num_params;
+}
+
+double GaussianMixture::bic(const std::vector<Eigen::VectorXd>& observations) const {
+    double log_likelihood = log_likelihood_sequence(observations);
+    int num_params = effective_parameters();
+    double n = static_cast<double>(observations.size());
+    return -2.0 * log_likelihood + num_params * std::log(n);
+}
+
+int GaussianMixture::effective_parameters() const {
+    if (components_.empty()) {
+        return 0;
+    }
+    
+    int params_per_component = dimension_ + (dimension_ * (dimension_ + 1)) / 2; // mean + covariance
+    int mixture_weights = static_cast<int>(components_.size()) - 1; // K-1 mixture weights (sum to 1)
+    
+    return static_cast<int>(components_.size()) * params_per_component + mixture_weights;
+}
+
+double GaussianMixture::weighted_em_step(const std::vector<Eigen::VectorXd>& observations,
+                                        const std::vector<double>& observation_weights) {
+    if (observations.empty() || components_.empty() || observations.size() != observation_weights.size()) {
+        return 0.0;
+    }
+    
+    // E-step: Accumulate sufficient statistics with observation weights
+    auto statistics = accumulate_weighted_statistics(observations, observation_weights);
+    
+    // M-step: Update parameters
+    update_parameters(statistics);
+    
+    // Compute weighted log-likelihood for convergence checking
+    return weighted_log_likelihood_sequence(observations, observation_weights);
+}
+
+std::vector<SufficientStatistics> GaussianMixture::accumulate_weighted_statistics(
+    const std::vector<Eigen::VectorXd>& observations,
+    const std::vector<double>& observation_weights) const {
+    
+    std::vector<SufficientStatistics> statistics(components_.size(), SufficientStatistics(dimension_));
+    
+    for (size_t obs_idx = 0; obs_idx < observations.size(); ++obs_idx) {
+        const auto& obs = observations[obs_idx];
+        double obs_weight = observation_weights[obs_idx];
+        
+        if (obs_weight <= 0.0) continue;  // Skip observations with zero or negative weights
+        
+        auto resp = responsibilities(obs);
+        
+        for (size_t i = 0; i < components_.size(); ++i) {
+            // Multiply responsibility by observation weight
+            double weighted_responsibility = resp[i] * obs_weight;
+            statistics[i].accumulate(obs, weighted_responsibility);
+        }
+    }
+    
+    return statistics;
+}
+
+double GaussianMixture::weighted_log_likelihood_sequence(const std::vector<Eigen::VectorXd>& observations,
+                                                       const std::vector<double>& observation_weights) const {
+    if (observations.size() != observation_weights.size()) {
+        return LOG_EPSILON;
+    }
+    
+    double total_weighted_log_likelihood = 0.0;
+    double total_weight = 0.0;
+    
+    for (size_t i = 0; i < observations.size(); ++i) {
+        if (observation_weights[i] > 0.0) {
+            total_weighted_log_likelihood += observation_weights[i] * log_likelihood(observations[i]);
+            total_weight += observation_weights[i];
+        }
+    }
+    
+    return total_weight > 0.0 ? total_weighted_log_likelihood / total_weight : LOG_EPSILON;
+}
 
 } // namespace hmm
 } // namespace nexussynth

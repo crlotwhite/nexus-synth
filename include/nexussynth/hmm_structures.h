@@ -73,6 +73,13 @@ namespace hmm {
             return output_distribution.train_em(observations, max_iterations);
         }
         
+        // Weighted training for HMM EM
+        double train_weighted_emissions(const std::vector<Eigen::VectorXd>& observations,
+                                      const std::vector<double>& weights, 
+                                      int max_iterations = 50) {
+            return output_distribution.train_weighted_em(observations, weights, max_iterations);
+        }
+        
         // Sample generation
         Eigen::VectorXd sample() const {
             return output_distribution.sample();

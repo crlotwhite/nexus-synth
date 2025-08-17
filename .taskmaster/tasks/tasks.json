@@ -335,7 +335,7 @@
               "5.1"
             ],
             "details": "K-means 초기화, 혼합 수에 따른 BIC/AIC 기반 모델 선택, 각 가우시안 성분의 평균 벡터, 공분산 행렬, 혼합 가중치 학습, 정규분포 확률밀도함수 계산 최적화",
-            "status": "pending",
+            "status": "in-progress",
             "testStrategy": ""
           },
           {
@@ -778,7 +778,7 @@
     ],
     "metadata": {
       "created": "2025-08-16T15:50:51.347Z",
-      "updated": "2025-08-17T15:25:07.500Z",
+      "updated": "2025-08-17T15:38:05.748Z",
       "description": "Tasks for master context"
     }
   }
