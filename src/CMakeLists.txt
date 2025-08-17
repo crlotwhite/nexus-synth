@@ -34,12 +34,16 @@ target_include_directories(nexussynth_lib PUBLIC
 # Create main executable
 add_executable(nexussynth main.cpp)
 
+# Find zlib
+find_package(ZLIB REQUIRED)
+
 # Link dependencies to library
 target_link_libraries(nexussynth_lib 
     world 
     Eigen3::Eigen
     asmjit::asmjit
     cjson
+    ZLIB::ZLIB
 )
 
 # Link library to executable
@@ -63,6 +67,14 @@ set_target_properties(test_world_wrapper PROPERTIES
 add_executable(test_audio_utils test_audio_utils.cpp)
 target_link_libraries(test_audio_utils nexussynth_lib)
 set_target_properties(test_audio_utils PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+)
+
+# Create compression and checksum test executable
+add_executable(test_compression_checksum test_compression_checksum.cpp)
+target_link_libraries(test_compression_checksum nexussynth_lib)
+set_target_properties(test_compression_checksum PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
 )

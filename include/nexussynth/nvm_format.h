@@ -7,6 +7,8 @@
 #include <fstream>
 #include <cstdint>
 #include <type_traits>
+#include <stdexcept>
+#include <functional>
 #include "hmm_structures.h"
 #include "voice_metadata.h"
 #include "gaussian_mixture.h"
@@ -36,6 +38,16 @@ namespace nvm {
         constexpr uint32_t CHUNK_CHECKSUM = 0x4D555348;   // 'HSUM'
         constexpr uint32_t CHUNK_CUSTOM = 0x4D545543;     // 'CUTM'
         
+        // Compression types
+        constexpr uint32_t COMPRESSION_NONE = 0;
+        constexpr uint32_t COMPRESSION_ZLIB = 1;
+        constexpr uint32_t COMPRESSION_LZ4 = 2;
+        
+        // Checksum types
+        constexpr uint32_t CHECKSUM_NONE = 0;
+        constexpr uint32_t CHECKSUM_CRC32 = 1;
+        constexpr uint32_t CHECKSUM_SHA256 = 2;
+        
         // Data alignment
         constexpr size_t ALIGNMENT = 8;  // 8-byte alignment for performance
         constexpr size_t HEADER_SIZE = 64; // Fixed header size
@@ -45,6 +57,120 @@ namespace nvm {
         constexpr size_t MAX_MODELS_PER_FILE = 65536;
         constexpr size_t MAX_CHUNK_SIZE = 0x7FFFFFFF; // 2GB max chunk size
     }
+
+    /**
+     * @brief Compression stream interface for transparent compression support
+     * 
+     * Provides unified interface for different compression algorithms
+     * with streaming capabilities for large data files
+     */
+    class CompressionStream {
+    public:
+        enum class Algorithm {
+            None = constants::COMPRESSION_NONE,
+            Zlib = constants::COMPRESSION_ZLIB,
+            LZ4 = constants::COMPRESSION_LZ4
+        };
+        
+        virtual ~CompressionStream() = default;
+        
+        // Stream operations
+        virtual bool compress(const void* input, size_t input_size, 
+                            std::vector<uint8_t>& output) = 0;
+        virtual bool decompress(const void* input, size_t input_size,
+                              std::vector<uint8_t>& output) = 0;
+        
+        // Factory method
+        static std::unique_ptr<CompressionStream> create(Algorithm algorithm);
+        
+        // Utility methods
+        static Algorithm from_uint32(uint32_t value);
+        static uint32_t to_uint32(Algorithm algorithm);
+    };
+
+    /**
+     * @brief Zlib compression implementation
+     */
+    class ZlibCompressionStream : public CompressionStream {
+    public:
+        ZlibCompressionStream(int compression_level = 6);
+        
+        bool compress(const void* input, size_t input_size, 
+                     std::vector<uint8_t>& output) override;
+        bool decompress(const void* input, size_t input_size,
+                       std::vector<uint8_t>& output) override;
+        
+    private:
+        int compression_level_;
+    };
+
+    /**
+     * @brief Checksum calculation interface for data integrity verification
+     * 
+     * Supports multiple checksum algorithms for ensuring file integrity
+     * during storage and transmission
+     */
+    class ChecksumCalculator {
+    public:
+        enum class Algorithm {
+            None = constants::CHECKSUM_NONE,
+            CRC32 = constants::CHECKSUM_CRC32,
+            SHA256 = constants::CHECKSUM_SHA256
+        };
+        
+        virtual ~ChecksumCalculator() = default;
+        
+        // Checksum operations
+        virtual void reset() = 0;
+        virtual void update(const void* data, size_t size) = 0;
+        virtual std::vector<uint8_t> finalize() = 0;
+        
+        // Convenience methods
+        std::vector<uint8_t> calculate(const void* data, size_t size);
+        std::string to_hex_string(const std::vector<uint8_t>& checksum);
+        
+        // Factory method
+        static std::unique_ptr<ChecksumCalculator> create(Algorithm algorithm);
+        
+        // Utility methods
+        static Algorithm from_uint32(uint32_t value);
+        static uint32_t to_uint32(Algorithm algorithm);
+        static size_t checksum_size(Algorithm algorithm);
+    };
+
+    /**
+     * @brief CRC32 checksum implementation
+     */
+    class Crc32Calculator : public ChecksumCalculator {
+    public:
+        Crc32Calculator();
+        
+        void reset() override;
+        void update(const void* data, size_t size) override;
+        std::vector<uint8_t> finalize() override;
+        
+    private:
+        uint32_t crc_;
+        static const uint32_t CRC32_TABLE[256];
+        
+        static uint32_t calculate_crc32(const void* data, size_t size, uint32_t initial_crc = 0xFFFFFFFF);
+    };
+
+    /**
+     * @brief SHA256 checksum implementation
+     */
+    class Sha256Calculator : public ChecksumCalculator {
+    public:
+        Sha256Calculator();
+        
+        void reset() override;
+        void update(const void* data, size_t size) override;
+        std::vector<uint8_t> finalize() override;
+        
+    private:
+        struct Sha256Context;
+        std::unique_ptr<Sha256Context> context_;
+    };
 
     /**
      * @brief Binary data writer with endianness control
@@ -285,8 +411,11 @@ namespace nvm {
         
         // Compression and integrity
         void set_compression(bool enabled) { compression_enabled_ = enabled; }
+        void set_compression_algorithm(CompressionStream::Algorithm algorithm) { compression_algorithm_ = algorithm; }
         void set_checksum(bool enabled) { checksum_enabled_ = enabled; }
+        void set_checksum_algorithm(ChecksumCalculator::Algorithm algorithm) { checksum_algorithm_ = algorithm; }
         bool verify_integrity() const;
+        bool verify_checksums() const;
         
         // Version compatibility
         bool is_version_compatible(uint32_t version) const;
@@ -304,6 +433,12 @@ namespace nvm {
         
         FileStats get_statistics() const;
         
+        // Compression and checksum helpers (public for testing)
+        bool compress_data(const std::vector<uint8_t>& input, std::vector<uint8_t>& output) const;
+        bool decompress_data(const std::vector<uint8_t>& input, std::vector<uint8_t>& output) const;
+        std::vector<uint8_t> calculate_data_checksum(const void* data, size_t size) const;
+        bool verify_data_checksum(const void* data, size_t size, const std::vector<uint8_t>& expected_checksum) const;
+        
     private:
         FileHeader header_;
         metadata::VoiceMetadata metadata_;
@@ -315,6 +450,8 @@ namespace nvm {
         bool is_dirty_;
         bool compression_enabled_;
         bool checksum_enabled_;
+        CompressionStream::Algorithm compression_algorithm_;
+        ChecksumCalculator::Algorithm checksum_algorithm_;
         
         // Internal operations
         bool read_file(const std::string& filename);
@@ -341,6 +478,21 @@ namespace nvm {
     };
 
     /**
+     * @brief Exception classes for compression and checksum errors
+     */
+    class CompressionException : public std::runtime_error {
+    public:
+        explicit CompressionException(const std::string& message) 
+            : std::runtime_error("Compression error: " + message) {}
+    };
+
+    class ChecksumException : public std::runtime_error {
+    public:
+        explicit ChecksumException(const std::string& message) 
+            : std::runtime_error("Checksum verification failed: " + message) {}
+    };
+
+    /**
      * @brief NVM format validation utilities
      */
     namespace validation {
@@ -358,6 +510,15 @@ namespace nvm {
         bool is_version_supported(uint32_t version);
         std::string version_to_string(uint32_t version);
         uint32_t version_from_string(const std::string& version_str);
+        
+        // Compression and checksum validation
+        bool verify_compression_support(uint32_t compression_type);
+        bool verify_checksum_support(uint32_t checksum_type);
+        bool verify_file_format_integrity(const std::string& filename);
+        bool test_compression_roundtrip(const std::vector<uint8_t>& test_data, 
+                                       CompressionStream::Algorithm algorithm);
+        bool test_checksum_consistency(const std::vector<uint8_t>& test_data,
+                                      ChecksumCalculator::Algorithm algorithm);
         
     } // namespace validation
 

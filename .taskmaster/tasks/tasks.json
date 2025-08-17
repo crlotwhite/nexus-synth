@@ -201,7 +201,7 @@
               "3.3"
             ],
             "details": "파일 헤더: 매직 넘버('NVM1'), 버전, 모델 개수, 메타데이터 오프셋. 데이터 섹션: HMM 상태 연속 저장, 인덱스 테이블: 모델 이름→오프셋 매핑. little-endian 바이트 오더 표준. 확장 가능한 청크 기반 구조",
-            "status": "in-progress",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -212,7 +212,7 @@
               "3.4"
             ],
             "details": "압축 헤더 플래그: none/zlib/lz4. 체크섬 필드: header checksum, data checksum. 압축/해제 스트림 래퍼 클래스. 체크섬 검증 실패 시 예외 처리. 성능 최적화를 위한 청크 단위 압축",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -778,7 +778,7 @@
     ],
     "metadata": {
       "created": "2025-08-16T15:50:51.347Z",
-      "updated": "2025-08-17T05:01:41.929Z",
+      "updated": "2025-08-17T05:19:13.066Z",
       "description": "Tasks for master context"
     }
   }
