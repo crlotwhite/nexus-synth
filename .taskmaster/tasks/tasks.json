@@ -290,7 +290,7 @@
               "4.3"
             ],
             "details": "음소 분류(모음/자음), 음절 위치 계산, 문맥 윈도우 설정(±1 음소), 특징 벡터 정규화, 벡터 차원 정의",
-            "status": "pending",
+            "status": "in-progress",
             "testStrategy": ""
           },
           {
@@ -778,7 +778,7 @@
     ],
     "metadata": {
       "created": "2025-08-16T15:50:51.347Z",
-      "updated": "2025-08-17T10:18:53.169Z",
+      "updated": "2025-08-17T10:36:35.836Z",
       "description": "Tasks for master context"
     }
   }
