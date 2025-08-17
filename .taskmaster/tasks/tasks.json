@@ -279,7 +279,7 @@
               "4.2"
             ],
             "details": "MIDI 이벤트 파싱, 타임스탬프 계산, 음표-음소 매핑 알고리즘, 템포 변화 처리, 마디 경계 인식",
-            "status": "in-progress",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -778,7 +778,7 @@
     ],
     "metadata": {
       "created": "2025-08-16T15:50:51.347Z",
-      "updated": "2025-08-17T10:03:25.833Z",
+      "updated": "2025-08-17T10:18:53.169Z",
       "description": "Tasks for master context"
     }
   }

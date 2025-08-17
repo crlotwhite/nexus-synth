@@ -10,6 +10,7 @@ set(NEXUSSYNTH_LIB_SOURCES
     nvm_format.cpp
     utau_oto_parser.cpp
     vcv_pattern_recognizer.cpp
+    midi_phoneme_integrator.cpp
 )
 
 # Create library
@@ -101,6 +102,14 @@ set_target_properties(test_utau_oto_parser PROPERTIES
 add_executable(test_vcv_pattern_recognizer test_vcv_pattern_recognizer.cpp)
 target_link_libraries(test_vcv_pattern_recognizer nexussynth_lib)
 set_target_properties(test_vcv_pattern_recognizer PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+)
+
+# Create MIDI phoneme integrator test executable
+add_executable(test_midi_phoneme_integrator test_midi_phoneme_integrator.cpp)
+target_link_libraries(test_midi_phoneme_integrator nexussynth_lib)
+set_target_properties(test_midi_phoneme_integrator PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
 )
