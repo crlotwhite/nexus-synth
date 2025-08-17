@@ -7,6 +7,7 @@ set(NEXUSSYNTH_LIB_SOURCES
     context_features.cpp
     voice_metadata.cpp
     gaussian_mixture.cpp
+    nvm_format.cpp
 )
 
 # Create library

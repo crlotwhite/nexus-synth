@@ -6,6 +6,7 @@
 #include "context_features.h"
 #include "voice_metadata.h"
 #include "gaussian_mixture.h"
+#include "nvm_format.h"
 
 namespace nexussynth {
     
