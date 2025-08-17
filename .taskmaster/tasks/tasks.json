@@ -249,7 +249,7 @@
         "dependencies": [
           3
         ],
-        "status": "in-progress",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -289,8 +289,8 @@
             "dependencies": [
               "4.3"
             ],
-            "details": "음소 분류(모음/자음), 음절 위치 계산, 문맥 윈도우 설정(±1 음소), 특징 벡터 정규화, 벡터 차원 정의",
-            "status": "in-progress",
+            "details": "음소 분류(모음/자음), 음절 위치 계산, 문맥 윈도우 설정(±1 음소), 특징 벡터 정규화, 벡터 차원 정의\n<info added on 2025-08-17T15:02:01.870Z>\nHMM 문맥 특징 벡터 생성 완료. `ContextFeatures::toFeatureVector()`에서 완전한 HMM 문맥 특징 벡터 생성 구현. 음소 문맥 특징(±3 음소 윈도우, 32차원 이진), 위치 문맥 특징(음절/모라/단어/구 내 위치, 경계, 액센트, 16차원), 타이밍 특징(지속시간, 신뢰도, 유효성, 3차원), MIDI 특징(음높이, 벨로시티, 주파수 정규화, 3차원), VCV 특징(경계 신뢰도 및 세그먼트 유효성, 4차원)이 포함됨. 이전/현재/다음 음소 정보 추출, 모음/자음 분류(32비트 이진), 음절 위치 계산(상대적), 문맥 윈도우 설정(±3 음소, 총 7개 프레임), 특징 벡터 정규화 지원, 벡터 차원 정의 등 모든 요구사항이 완료됨. 총 특징 벡터 차원은 346차원(7 × (32 + 16) + 3 + 3 + 4)으로 정의됨.\n</info added on 2025-08-17T15:02:01.870Z>",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -300,8 +300,8 @@
             "dependencies": [
               "4.4"
             ],
-            "details": "레이블 파일 포맷 정의, 시간 정보 포함, 특징 벡터 직렬화, 파일 유효성 검사, 오류 리포트 생성",
-            "status": "pending",
+            "details": "레이블 파일 포맷 정의, 시간 정보 포함, 특징 벡터 직렬화, 파일 유효성 검사, 오류 리포트 생성\n<info added on 2025-08-17T15:12:31.872Z>\n구현된 기능:\n1. **LabelFileGenerator 클래스** (label_file_generator.h/cpp)\n   - HTS 표준 형식 레이블 파일 생성\n   - ContextFeatures 및 HMM ContextFeatureVector 지원\n   - 시간 정보 포함 (10ns 단위 HTS 표준)\n   - 특징 벡터 직렬화\n\n2. **파일 유효성 검사**\n   - 시간 연속성 검증\n   - 레이블 형식 유효성 확인\n   - 데이터 무결성 검사\n   - 상세 오류 리포트 생성\n\n3. **배치 처리 시스템**\n   - LabelFileBatchProcessor 클래스\n   - 대량 파일 처리 지원\n   - 멀티스레드 병렬 처리 옵션\n   - 진행률 추적 및 오류 처리\n\n4. **품질 평가 도구**\n   - label_utils 네임스페이스\n   - 타이밍 정확도 평가\n   - 레이블 일관성 검사\n   - 파일 비교 유틸리티\n\n5. **검증 테스트**\n   - 단순 테스트 (test_label_simple.cpp) 성공적으로 실행\n   - HTS 레이블 형식 생성 확인: \"/A:1_1/B:1_1/C:sil-sil+ka++sa+ki/D:1_3/E:1_1/F:3_1/G:0_150/H:120_1/I:0_0_0\"\n   - 3개 레이블 항목, 450ms 총 지속시간, 평균 150ms 음소 길이\n   - 타이밍 연속성 및 레이블 형식 유효성 검증 통과\n\n완료된 요구사항:\n- ✅ 레이블 파일 포맷 정의 (HTS 표준)\n- ✅ 시간 정보 포함 (시작/종료 시간)\n- ✅ 특징 벡터 직렬화 (HTS 라벨 형식)\n- ✅ 파일 유효성 검사 (ValidationResult)\n- ✅ 오류 리포트 생성 (errors/warnings)\n</info added on 2025-08-17T15:12:31.872Z>",
+            "status": "done",
             "testStrategy": ""
           }
         ]
@@ -778,7 +778,7 @@
     ],
     "metadata": {
       "created": "2025-08-16T15:50:51.347Z",
-      "updated": "2025-08-17T10:36:35.836Z",
+      "updated": "2025-08-17T15:12:42.809Z",
       "description": "Tasks for master context"
     }
   }
