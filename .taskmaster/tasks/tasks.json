@@ -160,7 +160,7 @@
         "dependencies": [
           2
         ],
-        "status": "pending",
+        "status": "in-progress",
         "subtasks": [
           {
             "id": 1,
@@ -168,7 +168,7 @@
             "description": "HTS 스타일 HMM의 상태를 표현하는 C++ 구조체 설계: 평균 벡터, 공분산 행렬, 전이 확률 저장",
             "dependencies": [],
             "details": "GaussianState 구조체 정의: mean(μ), cov(Σ) Eigen::VectorXd/Eigen::MatrixXd 사용. Transition 구조체: self-loop, next-state 확률 저장. 메모리 정렬 및 패딩 최적화. 직렬화/역직렬화 메서드 포함",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -188,7 +188,7 @@
             "description": "음소/음표/가사 정보를 담은 문맥 특징 벡터 구조 및 인코딩 체계 정의",
             "dependencies": [],
             "details": "ContextFeature 구조체: phoneme identity, note pitch/duration, lyric encoding. One-hot 및 continuous 특징 하이브리드 방식. 특징 차원 계산 및 인덱싱 매핑. 질문 파일 기반 특징 추출 인터페이스",
-            "status": "pending",
+            "status": "in-progress",
             "testStrategy": ""
           },
           {
@@ -778,7 +778,7 @@
     ],
     "metadata": {
       "created": "2025-08-16T15:50:51.347Z",
-      "updated": "2025-08-16T17:22:00.305Z",
+      "updated": "2025-08-17T04:30:55.203Z",
       "description": "Tasks for master context"
     }
   }

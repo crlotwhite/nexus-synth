@@ -2,6 +2,7 @@
 
 #include <string>
 #include <memory>
+#include "hmm_structures.h"
 
 namespace nexussynth {
     
