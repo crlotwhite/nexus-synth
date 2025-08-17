@@ -188,7 +188,7 @@
             "description": "음소/음표/가사 정보를 담은 문맥 특징 벡터 구조 및 인코딩 체계 정의",
             "dependencies": [],
             "details": "ContextFeature 구조체: phoneme identity, note pitch/duration, lyric encoding. One-hot 및 continuous 특징 하이브리드 방식. 특징 차원 계산 및 인덱싱 매핑. 질문 파일 기반 특징 추출 인터페이스",
-            "status": "in-progress",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -778,7 +778,7 @@
     ],
     "metadata": {
       "created": "2025-08-16T15:50:51.347Z",
-      "updated": "2025-08-17T04:30:55.203Z",
+      "updated": "2025-08-17T04:34:02.088Z",
       "description": "Tasks for master context"
     }
   }

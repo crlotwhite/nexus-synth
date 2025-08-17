@@ -3,6 +3,7 @@
 #include <string>
 #include <memory>
 #include "hmm_structures.h"
+#include "context_features.h"
 
 namespace nexussynth {
     

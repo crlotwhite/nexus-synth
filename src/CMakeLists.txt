@@ -4,6 +4,7 @@ set(NEXUSSYNTH_LIB_SOURCES
     world_wrapper.cpp
     world_parameter_extractor.cpp
     audio_utils.cpp
+    context_features.cpp
 )
 
 # Create library
