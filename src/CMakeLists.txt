@@ -8,6 +8,7 @@ set(NEXUSSYNTH_LIB_SOURCES
     voice_metadata.cpp
     gaussian_mixture.cpp
     nvm_format.cpp
+    utau_oto_parser.cpp
 )
 
 # Create library
@@ -83,6 +84,14 @@ set_target_properties(test_compression_checksum PROPERTIES
 add_executable(test_version_management test_version_management.cpp)
 target_link_libraries(test_version_management nexussynth_lib)
 set_target_properties(test_version_management PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+)
+
+# Create UTAU oto.ini parser test executable
+add_executable(test_utau_oto_parser test_utau_oto_parser.cpp)
+target_link_libraries(test_utau_oto_parser nexussynth_lib)
+set_target_properties(test_utau_oto_parser PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
 )
