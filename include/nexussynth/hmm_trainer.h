@@ -57,15 +57,49 @@ namespace hmm {
     };
 
     /**
-     * @brief Sequence alignment result from Viterbi algorithm
+     * @brief Phoneme boundary information for alignment
+     */
+    struct PhonemeBoundary {
+        int start_frame;                         // Start frame index
+        int end_frame;                           // End frame index (exclusive)
+        std::string phoneme;                     // Phoneme label
+        double confidence_score;                 // Alignment confidence [0-1]
+        double duration_ms;                      // Duration in milliseconds
+        
+        PhonemeBoundary() : start_frame(0), end_frame(0), confidence_score(0.0), duration_ms(0.0) {}
+        PhonemeBoundary(int start, int end, const std::string& ph, double conf = 0.0, double dur = 0.0)
+            : start_frame(start), end_frame(end), phoneme(ph), confidence_score(conf), duration_ms(dur) {}
+    };
+
+    /**
+     * @brief Enhanced sequence alignment result from Viterbi algorithm
      */
     struct SequenceAlignment {
         std::vector<int> state_sequence;         // Most likely state sequence
         std::vector<int> frame_to_state;         // Frame-to-state mapping
         std::vector<double> frame_scores;        // Log probability per frame
+        std::vector<double> state_posteriors;   // State posterior probabilities per frame
+        std::vector<PhonemeBoundary> phoneme_boundaries; // Phoneme boundary timestamps
         double total_score;                      // Total sequence log probability
+        double average_confidence;               // Overall alignment confidence
+        double frame_rate;                       // Frames per second for time conversion
         
-        SequenceAlignment() : total_score(-std::numeric_limits<double>::infinity()) {}
+        SequenceAlignment() : total_score(-std::numeric_limits<double>::infinity()), 
+                             average_confidence(0.0), frame_rate(100.0) {}
+        
+        // Utility methods
+        double get_total_duration_ms() const {
+            return frame_to_state.empty() ? 0.0 : (frame_to_state.size() / frame_rate) * 1000.0;
+        }
+        
+        PhonemeBoundary* find_phoneme_at_frame(int frame_idx) {
+            for (auto& boundary : phoneme_boundaries) {
+                if (frame_idx >= boundary.start_frame && frame_idx < boundary.end_frame) {
+                    return &boundary;
+                }
+            }
+            return nullptr;
+        }
     };
 
     /**
@@ -107,6 +141,25 @@ namespace hmm {
         SequenceAlignment viterbi_alignment(const PhonemeHmm& model,
                                            const std::vector<Eigen::VectorXd>& observation_sequence) const;
         
+        // Enhanced forced alignment with phoneme boundaries
+        SequenceAlignment forced_alignment(const PhonemeHmm& model,
+                                         const std::vector<Eigen::VectorXd>& observation_sequence,
+                                         const std::vector<std::string>& phoneme_sequence,
+                                         double frame_rate = 100.0) const;
+        
+        // Forced alignment with time constraints (start/end time hints)
+        SequenceAlignment constrained_alignment(const PhonemeHmm& model,
+                                              const std::vector<Eigen::VectorXd>& observation_sequence,
+                                              const std::vector<std::string>& phoneme_sequence,
+                                              const std::vector<std::pair<double, double>>& time_constraints,
+                                              double frame_rate = 100.0) const;
+        
+        // Batch forced alignment for multiple sequences
+        std::vector<SequenceAlignment> batch_forced_alignment(const std::map<std::string, PhonemeHmm>& models,
+                                                             const std::vector<std::vector<Eigen::VectorXd>>& sequences,
+                                                             const std::vector<std::vector<std::string>>& phoneme_sequences,
+                                                             double frame_rate = 100.0) const;
+        
         // Batch processing for multiple sequences
         std::vector<ForwardBackwardResult> batch_forward_backward(const PhonemeHmm& model,
                                                                  const std::vector<std::vector<Eigen::VectorXd>>& sequences) const;
@@ -145,6 +198,29 @@ namespace hmm {
                                               const std::vector<Eigen::VectorXd>& observations) const;
         
         std::vector<int> backtrack_viterbi_path(const Eigen::MatrixXd& trellis) const;
+        
+        // Enhanced forced alignment helpers
+        Eigen::MatrixXd compute_forced_alignment_trellis(const PhonemeHmm& model,
+                                                       const std::vector<Eigen::VectorXd>& observations,
+                                                       const std::vector<std::string>& phoneme_sequence) const;
+        
+        Eigen::MatrixXd compute_constrained_trellis(const PhonemeHmm& model,
+                                                  const std::vector<Eigen::VectorXd>& observations,
+                                                  const std::vector<std::string>& phoneme_sequence,
+                                                  const std::vector<std::pair<double, double>>& time_constraints,
+                                                  double frame_rate) const;
+        
+        std::vector<PhonemeBoundary> extract_phoneme_boundaries(const std::vector<int>& state_sequence,
+                                                              const std::vector<std::string>& phoneme_sequence,
+                                                              const PhonemeHmm& model,
+                                                              double frame_rate) const;
+        
+        double compute_alignment_confidence(const Eigen::MatrixXd& trellis,
+                                          const std::vector<int>& state_sequence,
+                                          const ForwardBackwardResult& fb_result) const;
+        
+        std::vector<double> compute_state_posteriors(const ForwardBackwardResult& fb_result,
+                                                    const std::vector<int>& state_sequence) const;
         
         // Parameter update methods
         void update_transition_probabilities(PhonemeHmm& model,
