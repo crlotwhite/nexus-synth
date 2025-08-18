@@ -12,7 +12,7 @@ namespace nexussynth {
 namespace hmm {
 
     // HmmTrainer Implementation
-    HmmTrainer::HmmTrainer(const TrainingConfig& config) : config_(config) {
+    HmmTrainer::HmmTrainer(const TrainingConfig& config) : config_(config), has_checkpoint_(false) {
     }
 
     TrainingStats HmmTrainer::train_model(PhonemeHmm& model, 
@@ -67,9 +67,14 @@ namespace hmm {
                 }
             }
             
-            // Parameter change calculation
-            double param_change = compute_parameter_distance(previous_model, model);
+            // Enhanced parameter change calculation using L2 norm
+            double param_change = compute_parameter_l2_norm(previous_model, model);
             stats.parameter_changes.push_back(param_change);
+            
+            // Model checkpointing
+            if (config_.enable_model_checkpointing) {
+                save_checkpoint(model, stats);
+            }
             
             previous_model = model;
             stats.final_iteration = iteration + 1;
@@ -82,8 +87,21 @@ namespace hmm {
             // Convergence check
             if (check_convergence(stats)) {
                 stats.converged = true;
+                
+                // Restore best model if checkpointing is enabled
+                if (config_.enable_model_checkpointing && has_checkpoint_) {
+                    model = restore_best_model(model, stats);
+                }
                 break;
             }
+        }
+        
+        // Restore best model if training completed without convergence
+        if (!stats.converged && config_.enable_model_checkpointing && has_checkpoint_) {
+            model = restore_best_model(model, stats);
+            stats.convergence_reason = "Training completed: best model restored";
+        } else if (!stats.converged) {
+            stats.convergence_reason = "Training completed: maximum iterations reached";
         }
         
         if (config_.verbose) {
@@ -437,36 +455,53 @@ namespace hmm {
         }
     }
 
-    bool HmmTrainer::check_convergence(const TrainingStats& stats) const {
-        // Check log-likelihood convergence
-        if (check_log_likelihood_convergence(stats.log_likelihoods)) {
+    bool HmmTrainer::check_convergence(TrainingStats& stats) const {
+        std::vector<std::string> criteria_met;
+        
+        // Use enhanced multi-criteria convergence detection
+        bool converged = check_multi_criteria_convergence(stats, criteria_met);
+        
+        if (converged) {
+            // Calculate final convergence confidence
+            stats.convergence_confidence = calculate_convergence_confidence(stats);
+            stats.convergence_criteria_met = criteria_met;
+            
+            // Set convergence reason
+            if (!criteria_met.empty()) {
+                stats.convergence_reason = "Converged: ";
+                for (size_t i = 0; i < criteria_met.size(); ++i) {
+                    if (i > 0) stats.convergence_reason += ", ";
+                    stats.convergence_reason += criteria_met[i];
+                }
+            }
+        }
+        
+        // Check early stopping conditions regardless of convergence
+        if (check_early_stopping_conditions(stats)) {
+            stats.early_stopped = true;
+            if (stats.convergence_reason.empty()) {
+                stats.convergence_reason = "Early stopping triggered";
+            }
             return true;
         }
         
-        // Check parameter convergence
-        if (!stats.parameter_changes.empty() && 
-            stats.parameter_changes.back() < config_.parameter_threshold) {
-            return true;
-        }
-        
-        // Check validation convergence (early stopping)
-        if (config_.use_validation_set && check_validation_convergence(stats.validation_scores)) {
-            return true;
-        }
-        
-        return false;
+        return converged;
     }
 
-    bool HmmTrainer::check_log_likelihood_convergence(const std::vector<double>& log_likelihoods) const {
+    bool HmmTrainer::check_log_likelihood_convergence(const std::vector<double>& log_likelihoods, 
+                                                     double threshold) const {
         if (log_likelihoods.size() < config_.convergence_window) {
             return false;
         }
+        
+        // Use provided threshold or default from config
+        double effective_threshold = (threshold > 0) ? threshold : config_.convergence_threshold;
         
         // Check if improvement in last window is below threshold
         size_t window_start = log_likelihoods.size() - config_.convergence_window;
         double improvement = log_likelihoods.back() - log_likelihoods[window_start];
         
-        return improvement < config_.convergence_threshold;
+        return improvement < effective_threshold;
     }
 
     bool HmmTrainer::check_validation_convergence(const std::vector<double>& validation_scores) const {
@@ -498,6 +533,296 @@ namespace hmm {
         }
         
         return distance / N;
+    }
+
+    // Enhanced Convergence Detection Methods
+    bool HmmTrainer::check_multi_criteria_convergence(TrainingStats& stats, 
+                                                     std::vector<std::string>& criteria_met) const {
+        criteria_met.clear();
+        bool converged = false;
+        
+        // 1. Log-likelihood convergence with adaptive threshold
+        if (config_.enable_adaptive_thresholds) {
+            stats.adaptive_threshold = update_adaptive_threshold(stats);
+        }
+        
+        if (check_log_likelihood_convergence(stats.log_likelihoods, stats.adaptive_threshold)) {
+            criteria_met.push_back("log-likelihood");
+            converged = true;
+        }
+        
+        // 2. Enhanced parameter convergence using L2 norm
+        if (!stats.parameter_changes.empty()) {
+            double param_change = stats.parameter_changes.back();
+            if (param_change < config_.parameter_threshold) {
+                criteria_met.push_back("parameter-change");
+                converged = true;
+            }
+        }
+        
+        // 3. Relative improvement convergence
+        if (stats.log_likelihoods.size() >= 3) {
+            double rel_improvement = compute_relative_improvement(stats.log_likelihoods);
+            stats.relative_improvements.push_back(rel_improvement);
+            
+            if (rel_improvement < config_.min_improvement) {
+                criteria_met.push_back("relative-improvement");
+                converged = true;
+            }
+        }
+        
+        // 4. Validation convergence (enhanced)
+        if (config_.use_validation_set && !stats.validation_scores.empty()) {
+            if (check_validation_convergence(stats.validation_scores)) {
+                criteria_met.push_back("validation");
+                converged = true;
+            }
+        }
+        
+        // Require sufficient confidence for convergence
+        if (converged) {
+            double confidence = calculate_convergence_confidence(stats);
+            stats.convergence_confidence_scores.push_back(confidence);
+            
+            if (confidence < config_.convergence_confidence) {
+                criteria_met.clear(); // Not confident enough
+                converged = false;
+            }
+        }
+        
+        return converged;
+    }
+
+    double HmmTrainer::calculate_convergence_confidence(const TrainingStats& stats) const {
+        if (stats.log_likelihoods.size() < 3) {
+            return 0.0;
+        }
+        
+        double confidence = 0.0;
+        int criteria_count = 0;
+        
+        // Log-likelihood stability
+        if (stats.log_likelihoods.size() >= config_.convergence_window) {
+            size_t window_start = stats.log_likelihoods.size() - config_.convergence_window;
+            
+            // Calculate variance in recent window
+            std::vector<double> recent_ll(stats.log_likelihoods.begin() + window_start, 
+                                        stats.log_likelihoods.end());
+            double mean_ll = std::accumulate(recent_ll.begin(), recent_ll.end(), 0.0) / recent_ll.size();
+            
+            double variance = 0.0;
+            for (double ll : recent_ll) {
+                variance += std::pow(ll - mean_ll, 2);
+            }
+            variance /= recent_ll.size();
+            
+            // Lower variance = higher confidence
+            double ll_confidence = std::exp(-variance * 100.0);
+            confidence += ll_confidence;
+            criteria_count++;
+        }
+        
+        // Parameter change stability
+        if (stats.parameter_changes.size() >= config_.convergence_window) {
+            size_t window_start = stats.parameter_changes.size() - config_.convergence_window;
+            
+            // Check if parameter changes are consistently small
+            bool stable = true;
+            for (size_t i = window_start; i < stats.parameter_changes.size(); ++i) {
+                if (stats.parameter_changes[i] > config_.parameter_threshold * 2.0) {
+                    stable = false;
+                    break;
+                }
+            }
+            
+            double param_confidence = stable ? 1.0 : 0.0;
+            confidence += param_confidence;
+            criteria_count++;
+        }
+        
+        // Validation score consistency
+        if (!stats.validation_scores.empty() && stats.validation_scores.size() >= 3) {
+            // Check if validation scores are not deteriorating
+            double recent_avg = 0.0;
+            int recent_count = std::min(3, static_cast<int>(stats.validation_scores.size()));
+            
+            for (int i = 0; i < recent_count; ++i) {
+                recent_avg += stats.validation_scores[stats.validation_scores.size() - 1 - i];
+            }
+            recent_avg /= recent_count;
+            
+            double validation_confidence = (recent_avg >= stats.best_validation_score * 0.95) ? 1.0 : 0.5;
+            confidence += validation_confidence;
+            criteria_count++;
+        }
+        
+        return (criteria_count > 0) ? confidence / criteria_count : 0.0;
+    }
+
+    bool HmmTrainer::check_overfitting_detection(const TrainingStats& stats) const {
+        if (!config_.use_validation_set || stats.validation_scores.size() < 5) {
+            return false;
+        }
+        
+        // Check if validation score has significantly deteriorated
+        size_t recent_window = std::min(static_cast<size_t>(3), stats.validation_scores.size());
+        
+        double recent_avg = 0.0;
+        for (size_t i = 0; i < recent_window; ++i) {
+            recent_avg += stats.validation_scores[stats.validation_scores.size() - 1 - i];
+        }
+        recent_avg /= recent_window;
+        
+        // Compare to best validation score
+        double drop = stats.best_validation_score - recent_avg;
+        
+        return drop > config_.overfitting_threshold;
+    }
+
+    bool HmmTrainer::check_early_stopping_conditions(TrainingStats& stats) const {
+        // Update patience counter
+        if (!stats.validation_scores.empty()) {
+            double current_score = stats.validation_scores.back();
+            
+            if (current_score > stats.best_validation_score) {
+                stats.patience_counter = 0; // Reset patience
+                stats.best_validation_iteration = stats.final_iteration;
+            } else {
+                stats.patience_counter++;
+            }
+            
+            // Early stopping based on patience
+            if (stats.patience_counter >= config_.patience) {
+                stats.convergence_reason = "Early stopping: patience exceeded";
+                return true;
+            }
+        }
+        
+        // Overfitting detection
+        if (check_overfitting_detection(stats)) {
+            stats.convergence_reason = "Early stopping: overfitting detected";
+            return true;
+        }
+        
+        return false;
+    }
+
+    double HmmTrainer::compute_relative_improvement(const std::vector<double>& values, int window_size) const {
+        if (static_cast<int>(values.size()) < window_size * 2) {
+            return std::numeric_limits<double>::infinity();
+        }
+        
+        // Compare recent window to previous window
+        size_t total_size = values.size();
+        
+        double recent_avg = 0.0;
+        for (int i = 0; i < window_size; ++i) {
+            recent_avg += values[total_size - 1 - i];
+        }
+        recent_avg /= window_size;
+        
+        double previous_avg = 0.0;
+        for (int i = window_size; i < window_size * 2; ++i) {
+            previous_avg += values[total_size - 1 - i];
+        }
+        previous_avg /= window_size;
+        
+        if (std::abs(previous_avg) < 1e-12) {
+            return std::numeric_limits<double>::infinity();
+        }
+        
+        return (recent_avg - previous_avg) / std::abs(previous_avg);
+    }
+
+    double HmmTrainer::update_adaptive_threshold(const TrainingStats& stats) const {
+        if (stats.log_likelihoods.size() < 5) {
+            return config_.convergence_threshold;
+        }
+        
+        // Calculate recent improvement variance
+        std::vector<double> recent_improvements;
+        for (size_t i = 1; i < std::min(static_cast<size_t>(10), stats.log_likelihoods.size()); ++i) {
+            size_t idx = stats.log_likelihoods.size() - i;
+            double improvement = stats.log_likelihoods[idx] - stats.log_likelihoods[idx - 1];
+            recent_improvements.push_back(improvement);
+        }
+        
+        if (recent_improvements.empty()) {
+            return config_.convergence_threshold;
+        }
+        
+        // Calculate standard deviation of improvements
+        double mean_improvement = std::accumulate(recent_improvements.begin(), 
+                                                recent_improvements.end(), 0.0) / recent_improvements.size();
+        
+        double variance = 0.0;
+        for (double imp : recent_improvements) {
+            variance += std::pow(imp - mean_improvement, 2);
+        }
+        variance /= recent_improvements.size();
+        
+        double std_dev = std::sqrt(variance);
+        
+        // Adaptive threshold: smaller when improvements are stable
+        double adaptive_factor = std::max(0.1, std::min(10.0, std_dev / config_.convergence_threshold));
+        return config_.convergence_threshold * adaptive_factor;
+    }
+
+    // Enhanced parameter distance using L2 norm
+    double HmmTrainer::compute_parameter_l2_norm(const PhonemeHmm& model1, const PhonemeHmm& model2) const {
+        double l2_norm = 0.0;
+        const int N = std::min(model1.num_states(), model2.num_states());
+        
+        for (int i = 0; i < N; ++i) {
+            // Transition parameter differences (squared)
+            double trans_diff = std::pow(model1.states[i].transition.self_loop_prob - 
+                                       model2.states[i].transition.self_loop_prob, 2);
+            trans_diff += std::pow(model1.states[i].transition.next_state_prob - 
+                                 model2.states[i].transition.next_state_prob, 2);
+            
+            l2_norm += trans_diff;
+            
+            // Emission parameter differences would be added here
+            // For now, using simplified transition-only model
+        }
+        
+        return std::sqrt(l2_norm / N);
+    }
+
+    // Model checkpointing methods
+    PhonemeHmm HmmTrainer::save_checkpoint(const PhonemeHmm& model, const TrainingStats& stats) const {
+        if (should_save_checkpoint(stats)) {
+            best_model_ = model;
+            has_checkpoint_ = true;
+        }
+        return best_model_;
+    }
+
+    bool HmmTrainer::should_save_checkpoint(const TrainingStats& stats) const {
+        if (!config_.enable_model_checkpointing) {
+            return false;
+        }
+        
+        // Save if validation score improved
+        if (!stats.validation_scores.empty()) {
+            return stats.validation_scores.back() >= stats.best_validation_score;
+        }
+        
+        // Save if log-likelihood improved significantly
+        if (stats.log_likelihoods.size() >= 2) {
+            double improvement = stats.log_likelihoods.back() - 
+                               stats.log_likelihoods[stats.log_likelihoods.size() - 2];
+            return improvement > config_.convergence_threshold;
+        }
+        
+        return false;
+    }
+
+    PhonemeHmm HmmTrainer::restore_best_model(const PhonemeHmm& current_model, const TrainingStats& stats) const {
+        if (has_checkpoint_ && config_.enable_model_checkpointing) {
+            return best_model_;
+        }
+        return current_model;
     }
 
     Eigen::MatrixXd HmmTrainer::compute_viterbi_trellis(const PhonemeHmm& model,

@@ -20,11 +20,19 @@ namespace hmm {
     struct TrainingConfig {
         int max_iterations;             // Maximum EM iterations
         double convergence_threshold;   // Log-likelihood convergence threshold
-        double parameter_threshold;     // Parameter change threshold
+        double parameter_threshold;     // Parameter change threshold (L2 norm)
         bool use_validation_set;        // Enable validation-based early stopping
         double validation_split;        // Fraction of data for validation
         int convergence_window;         // Window size for convergence checking
         bool verbose;                   // Enable verbose logging
+        
+        // Enhanced convergence detection parameters
+        bool enable_adaptive_thresholds;    // Enable adaptive threshold adjustment
+        double overfitting_threshold;       // Validation score drop threshold for overfitting
+        int patience;                       // Early stopping patience (iterations)
+        double min_improvement;             // Minimum relative improvement required
+        bool enable_model_checkpointing;    // Save best models during training
+        double convergence_confidence;      // Required confidence for convergence [0-1]
         
         TrainingConfig() 
             : max_iterations(100)
@@ -33,7 +41,13 @@ namespace hmm {
             , use_validation_set(true)
             , validation_split(0.1)
             , convergence_window(5)
-            , verbose(false) {}
+            , verbose(false)
+            , enable_adaptive_thresholds(true)
+            , overfitting_threshold(0.005)
+            , patience(10)
+            , min_improvement(1e-5)
+            , enable_model_checkpointing(true)
+            , convergence_confidence(0.95) {}
     };
 
     /**
@@ -42,18 +56,33 @@ namespace hmm {
     struct TrainingStats {
         std::vector<double> log_likelihoods;     // Log-likelihood per iteration
         std::vector<double> validation_scores;   // Validation scores per iteration
-        std::vector<double> parameter_changes;   // Parameter change magnitudes
+        std::vector<double> parameter_changes;   // Parameter change magnitudes (L2 norm)
         int final_iteration;                     // Final iteration count
         bool converged;                          // Did training converge?
         double final_log_likelihood;             // Final training log-likelihood
         double best_validation_score;            // Best validation score
         std::string convergence_reason;          // Reason for stopping
         
+        // Enhanced convergence tracking
+        std::vector<double> convergence_confidence_scores;  // Confidence per iteration
+        std::vector<std::string> convergence_criteria_met;  // Which criteria triggered convergence
+        int best_validation_iteration;          // Iteration with best validation score
+        double convergence_confidence;           // Final convergence confidence
+        bool early_stopped;                     // Was training early stopped?
+        int patience_counter;                   // Current patience counter
+        double adaptive_threshold;              // Current adaptive threshold
+        std::vector<double> relative_improvements; // Relative improvement per iteration
+        
         TrainingStats() 
             : final_iteration(0)
             , converged(false)
             , final_log_likelihood(-std::numeric_limits<double>::infinity())
-            , best_validation_score(-std::numeric_limits<double>::infinity()) {}
+            , best_validation_score(-std::numeric_limits<double>::infinity())
+            , best_validation_iteration(0)
+            , convergence_confidence(0.0)
+            , early_stopped(false)
+            , patience_counter(0)
+            , adaptive_threshold(1e-4) {}
     };
 
     /**
@@ -175,6 +204,10 @@ namespace hmm {
     private:
         TrainingConfig config_;
         
+        // Model checkpointing
+        mutable PhonemeHmm best_model_;
+        mutable bool has_checkpoint_;
+        
         // EM algorithm core methods
         double em_expectation_step(const PhonemeHmm& model,
                                  const std::vector<std::vector<Eigen::VectorXd>>& sequences,
@@ -231,14 +264,30 @@ namespace hmm {
                                          const std::vector<std::vector<Eigen::VectorXd>>& sequences,
                                          const std::vector<ForwardBackwardResult>& fb_results);
         
-        // Convergence detection
-        bool check_convergence(const TrainingStats& stats) const;
-        bool check_log_likelihood_convergence(const std::vector<double>& log_likelihoods) const;
+        // Enhanced convergence detection
+        bool check_convergence(TrainingStats& stats) const;
+        bool check_log_likelihood_convergence(const std::vector<double>& log_likelihoods, 
+                                            double threshold = -1.0) const;
         bool check_parameter_convergence(const PhonemeHmm& old_model, const PhonemeHmm& new_model) const;
         bool check_validation_convergence(const std::vector<double>& validation_scores) const;
         
+        // Advanced convergence detection methods
+        bool check_multi_criteria_convergence(TrainingStats& stats, 
+                                            std::vector<std::string>& criteria_met) const;
+        double calculate_convergence_confidence(const TrainingStats& stats) const;
+        bool check_overfitting_detection(const TrainingStats& stats) const;
+        bool check_early_stopping_conditions(TrainingStats& stats) const;
+        double compute_relative_improvement(const std::vector<double>& values, int window_size = 3) const;
+        double update_adaptive_threshold(const TrainingStats& stats) const;
+        
+        // Model checkpointing and management
+        PhonemeHmm save_checkpoint(const PhonemeHmm& model, const TrainingStats& stats) const;
+        bool should_save_checkpoint(const TrainingStats& stats) const;
+        PhonemeHmm restore_best_model(const PhonemeHmm& current_model, const TrainingStats& stats) const;
+        
         // Utility methods
         double compute_parameter_distance(const PhonemeHmm& model1, const PhonemeHmm& model2) const;
+        double compute_parameter_l2_norm(const PhonemeHmm& model1, const PhonemeHmm& model2) const;
         std::vector<std::vector<Eigen::VectorXd>> split_validation_data(
             const std::vector<std::vector<Eigen::VectorXd>>& data,
             double validation_split) const;
