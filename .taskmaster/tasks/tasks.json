@@ -377,8 +377,8 @@
             "dependencies": [
               "5.3"
             ],
-            "details": "프레임별 스펙트럼 벡터의 차원별 분산 계산, 음소/문맥별 GV 통계 집계, GV 기반 파라미터 보정 가중치 계산, GV 통계 파일(JSON 형식) 저장 및 로드",
-            "status": "pending",
+            "details": "프레임별 스펙트럼 벡터의 차원별 분산 계산, 음소/문맥별 GV 통계 집계, GV 기반 파라미터 보정 가중치 계산, GV 통계 파일(JSON 형식) 저장 및 로드\n<info added on 2025-08-18T05:46:35.002Z>\nImplementation Completed. Key features include a comprehensive `GlobalVarianceStatistics` structure for per-phoneme and global stats, integration with `SequenceAlignment` (Task 5.3) for precise phoneme boundaries, support for incremental updates and online learning via exponential moving average, and an advanced correction algorithm with variance scaling, safety bounds, and adaptive weighting. Robust JSON persistence with error handling is also implemented. Comprehensive testing has been performed via `test_global_variance.cpp`, validating core algorithms, edge cases, and integration. This module prevents over-smoothing, ensures numerical stability, and supports both batch and online processing. Relevant files updated are `include/nexussynth/hmm_trainer.h`, `src/hmm_trainer.cpp` (approx. 520 lines of GV logic), and `test_global_variance.cpp`. The module is now ready for integration with MLPG (Task 6) and model convergence detection (Task 5.5).\n</info added on 2025-08-18T05:46:35.002Z>",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -778,7 +778,7 @@
     ],
     "metadata": {
       "created": "2025-08-16T15:50:51.347Z",
-      "updated": "2025-08-18T05:28:07.258Z",
+      "updated": "2025-08-18T05:46:42.126Z",
       "description": "Tasks for master context"
     }
   }

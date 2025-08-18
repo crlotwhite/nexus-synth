@@ -295,5 +295,142 @@ namespace hmm {
         void update_training_progress(const std::string& model_name, int iteration, double log_likelihood);
     };
 
+    /**
+     * @brief Global Variance (GV) statistics for spectral parameter correction
+     * 
+     * Manages calculation and storage of Global Variance statistics to prevent
+     * over-smoothing in HMM-based parameter generation. Critical for natural
+     * sounding synthesis output.
+     */
+    struct GlobalVarianceStatistics {
+        std::map<std::string, Eigen::VectorXd> phoneme_gv_mean;    // Per-phoneme GV means
+        std::map<std::string, Eigen::VectorXd> phoneme_gv_var;     // Per-phoneme GV variances
+        Eigen::VectorXd global_gv_mean;                           // Overall GV means
+        Eigen::VectorXd global_gv_var;                            // Overall GV variances
+        std::map<std::string, int> phoneme_frame_counts;          // Frame counts per phoneme
+        int total_frames;                                         // Total frame count
+        int feature_dimension;                                    // Feature vector dimension
+        
+        GlobalVarianceStatistics() : total_frames(0), feature_dimension(0) {}
+        
+        // Initialize with feature dimension
+        void initialize(int dim) {
+            feature_dimension = dim;
+            global_gv_mean = Eigen::VectorXd::Zero(dim);
+            global_gv_var = Eigen::VectorXd::Zero(dim);
+            total_frames = 0;
+        }
+        
+        // Clear all statistics
+        void clear() {
+            phoneme_gv_mean.clear();
+            phoneme_gv_var.clear();
+            phoneme_frame_counts.clear();
+            global_gv_mean.setZero();
+            global_gv_var.setZero();
+            total_frames = 0;
+        }
+        
+        // Check if statistics are available for a phoneme
+        bool has_phoneme_statistics(const std::string& phoneme) const {
+            return phoneme_gv_mean.find(phoneme) != phoneme_gv_mean.end();
+        }
+        
+        // Get GV statistics for a specific phoneme (fallback to global if not available)
+        std::pair<Eigen::VectorXd, Eigen::VectorXd> get_gv_statistics(const std::string& phoneme) const {
+            auto it = phoneme_gv_mean.find(phoneme);
+            if (it != phoneme_gv_mean.end()) {
+                auto var_it = phoneme_gv_var.find(phoneme);
+                return std::make_pair(it->second, var_it->second);
+            }
+            return std::make_pair(global_gv_mean, global_gv_var);
+        }
+    };
+
+    /**
+     * @brief Global Variance calculator for HMM parameter generation
+     * 
+     * Calculates frame-wise variance statistics for spectral parameters
+     * to prevent over-smoothing in MLPG parameter generation
+     */
+    class GlobalVarianceCalculator {
+    public:
+        GlobalVarianceCalculator() = default;
+        
+        // Calculate GV statistics from training sequences
+        GlobalVarianceStatistics calculate_gv_statistics(
+            const std::vector<std::vector<Eigen::VectorXd>>& sequences,
+            const std::vector<std::vector<std::string>>& phoneme_labels) const;
+        
+        // Calculate GV statistics with phoneme alignment information
+        GlobalVarianceStatistics calculate_gv_statistics_with_alignment(
+            const std::vector<std::vector<Eigen::VectorXd>>& sequences,
+            const std::vector<SequenceAlignment>& alignments) const;
+        
+        // Update existing GV statistics with new data (incremental)
+        void update_gv_statistics(GlobalVarianceStatistics& gv_stats,
+                                const std::vector<Eigen::VectorXd>& sequence,
+                                const std::vector<std::string>& phoneme_labels) const;
+        
+        // Calculate frame-wise variance for a single sequence
+        Eigen::VectorXd calculate_sequence_variance(const std::vector<Eigen::VectorXd>& sequence) const;
+        
+        // Calculate phoneme-specific variances from aligned data
+        std::map<std::string, Eigen::VectorXd> calculate_phoneme_variances(
+            const std::vector<Eigen::VectorXd>& sequence,
+            const SequenceAlignment& alignment) const;
+        
+        // Apply GV correction to parameter trajectory
+        std::vector<Eigen::VectorXd> apply_gv_correction(
+            const std::vector<Eigen::VectorXd>& original_trajectory,
+            const GlobalVarianceStatistics& gv_stats,
+            const std::vector<std::string>& phoneme_sequence,
+            double gv_weight = 1.0) const;
+        
+        // Calculate GV correction weights based on confidence
+        std::vector<double> calculate_gv_weights(
+            const std::vector<Eigen::VectorXd>& trajectory,
+            const GlobalVarianceStatistics& gv_stats,
+            const std::vector<std::string>& phoneme_sequence) const;
+        
+        // Save/Load GV statistics to/from JSON file
+        bool save_gv_statistics(const GlobalVarianceStatistics& gv_stats, 
+                               const std::string& filepath) const;
+        bool load_gv_statistics(GlobalVarianceStatistics& gv_stats, 
+                               const std::string& filepath) const;
+        
+        // Validate GV statistics integrity
+        bool validate_gv_statistics(const GlobalVarianceStatistics& gv_stats) const;
+        
+        // Merge multiple GV statistics (for ensemble training)
+        GlobalVarianceStatistics merge_gv_statistics(
+            const std::vector<GlobalVarianceStatistics>& gv_stats_list) const;
+        
+    private:
+        // Helper methods for variance calculation
+        Eigen::VectorXd compute_frame_wise_variance(const std::vector<Eigen::VectorXd>& frames) const;
+        
+        void accumulate_phoneme_statistics(std::map<std::string, std::vector<Eigen::VectorXd>>& phoneme_frames,
+                                         const std::vector<Eigen::VectorXd>& sequence,
+                                         const std::vector<std::string>& phoneme_labels) const;
+        
+        void accumulate_alignment_statistics(std::map<std::string, std::vector<Eigen::VectorXd>>& phoneme_frames,
+                                           const std::vector<Eigen::VectorXd>& sequence,
+                                           const SequenceAlignment& alignment) const;
+        
+        // Statistical utilities
+        double safe_variance(const std::vector<double>& values) const;
+        Eigen::VectorXd safe_vector_variance(const std::vector<Eigen::VectorXd>& vectors) const;
+        
+        // JSON serialization helpers
+        std::string serialize_vector_to_json(const Eigen::VectorXd& vec) const;
+        Eigen::VectorXd deserialize_vector_from_json(const std::string& json_str) const;
+        
+        // Numerical stability constants
+        static constexpr double MIN_VARIANCE = 1e-6;
+        static constexpr double MIN_GV_WEIGHT = 0.01;
+        static constexpr double MAX_GV_WEIGHT = 2.0;
+    };
+
 } // namespace hmm
 } // namespace nexussynth

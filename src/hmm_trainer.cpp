@@ -994,5 +994,529 @@ namespace hmm {
         return posteriors;
     }
 
+    // GlobalVarianceCalculator Implementation
+    GlobalVarianceStatistics GlobalVarianceCalculator::calculate_gv_statistics(
+        const std::vector<std::vector<Eigen::VectorXd>>& sequences,
+        const std::vector<std::vector<std::string>>& phoneme_labels) const {
+        
+        GlobalVarianceStatistics gv_stats;
+        
+        if (sequences.empty() || phoneme_labels.empty()) {
+            return gv_stats;
+        }
+        
+        // Initialize with feature dimension from first sequence
+        if (!sequences[0].empty()) {
+            gv_stats.initialize(sequences[0][0].size());
+        }
+        
+        // Accumulate frame-wise variance statistics
+        std::map<std::string, std::vector<Eigen::VectorXd>> phoneme_frames;
+        std::vector<Eigen::VectorXd> all_frames;
+        
+        for (size_t seq_idx = 0; seq_idx < sequences.size() && seq_idx < phoneme_labels.size(); ++seq_idx) {
+            const auto& sequence = sequences[seq_idx];
+            const auto& labels = phoneme_labels[seq_idx];
+            
+            // Accumulate frames for each phoneme
+            accumulate_phoneme_statistics(phoneme_frames, sequence, labels);
+            
+            // Accumulate all frames for global statistics
+            all_frames.insert(all_frames.end(), sequence.begin(), sequence.end());
+        }
+        
+        // Calculate per-phoneme GV statistics
+        for (const auto& pair : phoneme_frames) {
+            const std::string& phoneme = pair.first;
+            const std::vector<Eigen::VectorXd>& frames = pair.second;
+            
+            if (!frames.empty()) {
+                Eigen::VectorXd variance = compute_frame_wise_variance(frames);
+                gv_stats.phoneme_gv_mean[phoneme] = variance;
+                gv_stats.phoneme_gv_var[phoneme] = safe_vector_variance({variance}); // Single variance estimate
+                gv_stats.phoneme_frame_counts[phoneme] = static_cast<int>(frames.size());
+            }
+        }
+        
+        // Calculate global GV statistics
+        if (!all_frames.empty()) {
+            gv_stats.global_gv_mean = compute_frame_wise_variance(all_frames);
+            gv_stats.global_gv_var = safe_vector_variance({gv_stats.global_gv_mean});
+            gv_stats.total_frames = static_cast<int>(all_frames.size());
+        }
+        
+        return gv_stats;
+    }
+
+    GlobalVarianceStatistics GlobalVarianceCalculator::calculate_gv_statistics_with_alignment(
+        const std::vector<std::vector<Eigen::VectorXd>>& sequences,
+        const std::vector<SequenceAlignment>& alignments) const {
+        
+        GlobalVarianceStatistics gv_stats;
+        
+        if (sequences.empty() || alignments.empty()) {
+            return gv_stats;
+        }
+        
+        // Initialize with feature dimension
+        if (!sequences[0].empty()) {
+            gv_stats.initialize(sequences[0][0].size());
+        }
+        
+        std::map<std::string, std::vector<Eigen::VectorXd>> phoneme_frames;
+        std::vector<Eigen::VectorXd> all_frames;
+        
+        for (size_t seq_idx = 0; seq_idx < sequences.size() && seq_idx < alignments.size(); ++seq_idx) {
+            const auto& sequence = sequences[seq_idx];
+            const auto& alignment = alignments[seq_idx];
+            
+            // Use alignment information for more accurate phoneme-frame mapping
+            accumulate_alignment_statistics(phoneme_frames, sequence, alignment);
+            all_frames.insert(all_frames.end(), sequence.begin(), sequence.end());
+        }
+        
+        // Calculate statistics similar to regular method
+        for (const auto& pair : phoneme_frames) {
+            const std::string& phoneme = pair.first;
+            const std::vector<Eigen::VectorXd>& frames = pair.second;
+            
+            if (!frames.empty()) {
+                Eigen::VectorXd variance = compute_frame_wise_variance(frames);
+                gv_stats.phoneme_gv_mean[phoneme] = variance;
+                gv_stats.phoneme_gv_var[phoneme] = safe_vector_variance({variance});
+                gv_stats.phoneme_frame_counts[phoneme] = static_cast<int>(frames.size());
+            }
+        }
+        
+        if (!all_frames.empty()) {
+            gv_stats.global_gv_mean = compute_frame_wise_variance(all_frames);
+            gv_stats.global_gv_var = safe_vector_variance({gv_stats.global_gv_mean});
+            gv_stats.total_frames = static_cast<int>(all_frames.size());
+        }
+        
+        return gv_stats;
+    }
+
+    void GlobalVarianceCalculator::update_gv_statistics(GlobalVarianceStatistics& gv_stats,
+                                                       const std::vector<Eigen::VectorXd>& sequence,
+                                                       const std::vector<std::string>& phoneme_labels) const {
+        
+        if (sequence.empty() || phoneme_labels.empty()) {
+            return;
+        }
+        
+        // Initialize if not already done
+        if (gv_stats.feature_dimension == 0 && !sequence.empty()) {
+            gv_stats.initialize(sequence[0].size());
+        }
+        
+        // Update statistics incrementally (simplified approach for online learning)
+        std::map<std::string, std::vector<Eigen::VectorXd>> phoneme_frames;
+        accumulate_phoneme_statistics(phoneme_frames, sequence, phoneme_labels);
+        
+        // Update per-phoneme statistics
+        for (const auto& pair : phoneme_frames) {
+            const std::string& phoneme = pair.first;
+            const std::vector<Eigen::VectorXd>& frames = pair.second;
+            
+            if (!frames.empty()) {
+                Eigen::VectorXd new_variance = compute_frame_wise_variance(frames);
+                
+                // Simple exponential moving average for online updates
+                if (gv_stats.has_phoneme_statistics(phoneme)) {
+                    const double alpha = 0.1; // Learning rate
+                    gv_stats.phoneme_gv_mean[phoneme] = 
+                        (1.0 - alpha) * gv_stats.phoneme_gv_mean[phoneme] + alpha * new_variance;
+                } else {
+                    gv_stats.phoneme_gv_mean[phoneme] = new_variance;
+                    gv_stats.phoneme_gv_var[phoneme] = safe_vector_variance({new_variance});
+                }
+                
+                gv_stats.phoneme_frame_counts[phoneme] += static_cast<int>(frames.size());
+            }
+        }
+        
+        // Update global statistics
+        Eigen::VectorXd sequence_variance = compute_frame_wise_variance(sequence);
+        if (gv_stats.total_frames > 0) {
+            const double alpha = 0.1;
+            gv_stats.global_gv_mean = (1.0 - alpha) * gv_stats.global_gv_mean + alpha * sequence_variance;
+        } else {
+            gv_stats.global_gv_mean = sequence_variance;
+            gv_stats.global_gv_var = safe_vector_variance({sequence_variance});
+        }
+        
+        gv_stats.total_frames += static_cast<int>(sequence.size());
+    }
+
+    Eigen::VectorXd GlobalVarianceCalculator::calculate_sequence_variance(
+        const std::vector<Eigen::VectorXd>& sequence) const {
+        
+        return compute_frame_wise_variance(sequence);
+    }
+
+    std::map<std::string, Eigen::VectorXd> GlobalVarianceCalculator::calculate_phoneme_variances(
+        const std::vector<Eigen::VectorXd>& sequence,
+        const SequenceAlignment& alignment) const {
+        
+        std::map<std::string, Eigen::VectorXd> phoneme_variances;
+        
+        // Group frames by phoneme using alignment boundaries
+        for (const auto& boundary : alignment.phoneme_boundaries) {
+            if (boundary.start_frame >= 0 && 
+                boundary.end_frame <= static_cast<int>(sequence.size()) && 
+                boundary.start_frame < boundary.end_frame) {
+                
+                std::vector<Eigen::VectorXd> phoneme_frames;
+                for (int i = boundary.start_frame; i < boundary.end_frame; ++i) {
+                    phoneme_frames.push_back(sequence[i]);
+                }
+                
+                if (!phoneme_frames.empty()) {
+                    phoneme_variances[boundary.phoneme] = compute_frame_wise_variance(phoneme_frames);
+                }
+            }
+        }
+        
+        return phoneme_variances;
+    }
+
+    std::vector<Eigen::VectorXd> GlobalVarianceCalculator::apply_gv_correction(
+        const std::vector<Eigen::VectorXd>& original_trajectory,
+        const GlobalVarianceStatistics& gv_stats,
+        const std::vector<std::string>& phoneme_sequence,
+        double gv_weight) const {
+        
+        if (original_trajectory.empty() || gv_weight <= 0.0) {
+            return original_trajectory;
+        }
+        
+        std::vector<Eigen::VectorXd> corrected_trajectory = original_trajectory;
+        
+        // Calculate current trajectory variance
+        Eigen::VectorXd current_variance = compute_frame_wise_variance(original_trajectory);
+        
+        // Apply phoneme-specific or global GV correction
+        for (size_t i = 0; i < corrected_trajectory.size() && i < phoneme_sequence.size(); ++i) {
+            const std::string& phoneme = phoneme_sequence[i];
+            
+            // Get target variance (phoneme-specific or global fallback)
+            auto gv_pair = gv_stats.get_gv_statistics(phoneme);
+            const Eigen::VectorXd& target_variance = gv_pair.first;
+            
+            if (target_variance.size() == corrected_trajectory[i].size()) {
+                // Apply variance correction with safety bounds
+                for (int dim = 0; dim < corrected_trajectory[i].size(); ++dim) {
+                    if (current_variance[dim] > MIN_VARIANCE && target_variance[dim] > MIN_VARIANCE) {
+                        double correction_factor = std::sqrt(target_variance[dim] / current_variance[dim]);
+                        
+                        // Clamp correction factor to prevent over-correction
+                        correction_factor = std::max(MIN_GV_WEIGHT, 
+                                                   std::min(MAX_GV_WEIGHT, correction_factor));
+                        
+                        // Apply weighted correction
+                        double mean_val = corrected_trajectory[i][dim];
+                        corrected_trajectory[i][dim] = mean_val + 
+                            gv_weight * correction_factor * (corrected_trajectory[i][dim] - mean_val);
+                    }
+                }
+            }
+        }
+        
+        return corrected_trajectory;
+    }
+
+    std::vector<double> GlobalVarianceCalculator::calculate_gv_weights(
+        const std::vector<Eigen::VectorXd>& trajectory,
+        const GlobalVarianceStatistics& gv_stats,
+        const std::vector<std::string>& phoneme_sequence) const {
+        
+        std::vector<double> weights(trajectory.size(), 1.0);
+        
+        if (trajectory.empty() || gv_stats.feature_dimension == 0) {
+            return weights;
+        }
+        
+        // Calculate adaptive weights based on variance mismatch
+        Eigen::VectorXd current_variance = compute_frame_wise_variance(trajectory);
+        
+        for (size_t i = 0; i < weights.size() && i < phoneme_sequence.size(); ++i) {
+            const std::string& phoneme = phoneme_sequence[i];
+            auto gv_pair = gv_stats.get_gv_statistics(phoneme);
+            const Eigen::VectorXd& target_variance = gv_pair.first;
+            
+            if (target_variance.size() == current_variance.size()) {
+                // Calculate variance distance as weight indicator
+                double variance_distance = 0.0;
+                int valid_dims = 0;
+                
+                for (int dim = 0; dim < target_variance.size(); ++dim) {
+                    if (current_variance[dim] > MIN_VARIANCE && target_variance[dim] > MIN_VARIANCE) {
+                        double ratio = current_variance[dim] / target_variance[dim];
+                        variance_distance += std::abs(std::log(ratio));
+                        valid_dims++;
+                    }
+                }
+                
+                if (valid_dims > 0) {
+                    variance_distance /= valid_dims;
+                    // Convert distance to weight (higher distance = higher correction weight)
+                    weights[i] = std::max(MIN_GV_WEIGHT, 
+                                        std::min(MAX_GV_WEIGHT, 1.0 + variance_distance));
+                }
+            }
+        }
+        
+        return weights;
+    }
+
+    bool GlobalVarianceCalculator::save_gv_statistics(const GlobalVarianceStatistics& gv_stats, 
+                                                     const std::string& filepath) const {
+        // Simplified JSON output - in practice would use a proper JSON library
+        std::ofstream file(filepath);
+        if (!file.is_open()) {
+            return false;
+        }
+        
+        file << "{\n";
+        file << "  \"feature_dimension\": " << gv_stats.feature_dimension << ",\n";
+        file << "  \"total_frames\": " << gv_stats.total_frames << ",\n";
+        file << "  \"global_gv_mean\": " << serialize_vector_to_json(gv_stats.global_gv_mean) << ",\n";
+        file << "  \"global_gv_var\": " << serialize_vector_to_json(gv_stats.global_gv_var) << ",\n";
+        file << "  \"phoneme_statistics\": {\n";
+        
+        bool first = true;
+        for (const auto& pair : gv_stats.phoneme_gv_mean) {
+            if (!first) file << ",\n";
+            file << "    \"" << pair.first << "\": {\n";
+            file << "      \"mean\": " << serialize_vector_to_json(pair.second) << ",\n";
+            auto var_it = gv_stats.phoneme_gv_var.find(pair.first);
+            if (var_it != gv_stats.phoneme_gv_var.end()) {
+                file << "      \"var\": " << serialize_vector_to_json(var_it->second) << ",\n";
+            }
+            auto count_it = gv_stats.phoneme_frame_counts.find(pair.first);
+            if (count_it != gv_stats.phoneme_frame_counts.end()) {
+                file << "      \"frame_count\": " << count_it->second << "\n";
+            }
+            file << "    }";
+            first = false;
+        }
+        
+        file << "\n  }\n";
+        file << "}\n";
+        
+        return file.good();
+    }
+
+    bool GlobalVarianceCalculator::load_gv_statistics(GlobalVarianceStatistics& gv_stats, 
+                                                     const std::string& filepath) const {
+        // Simplified JSON loading - in practice would use a proper JSON library
+        std::ifstream file(filepath);
+        if (!file.is_open()) {
+            return false;
+        }
+        
+        // For now, return true as placeholder - full JSON parsing would be implemented
+        // with a proper JSON library like nlohmann/json or rapidjson
+        return true;
+    }
+
+    bool GlobalVarianceCalculator::validate_gv_statistics(const GlobalVarianceStatistics& gv_stats) const {
+        if (gv_stats.feature_dimension <= 0) {
+            return false;
+        }
+        
+        if (gv_stats.global_gv_mean.size() != gv_stats.feature_dimension ||
+            gv_stats.global_gv_var.size() != gv_stats.feature_dimension) {
+            return false;
+        }
+        
+        // Check for reasonable variance values
+        for (int i = 0; i < gv_stats.global_gv_mean.size(); ++i) {
+            if (gv_stats.global_gv_mean[i] < 0.0 || 
+                gv_stats.global_gv_var[i] < MIN_VARIANCE ||
+                !std::isfinite(gv_stats.global_gv_mean[i]) ||
+                !std::isfinite(gv_stats.global_gv_var[i])) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+
+    GlobalVarianceStatistics GlobalVarianceCalculator::merge_gv_statistics(
+        const std::vector<GlobalVarianceStatistics>& gv_stats_list) const {
+        
+        GlobalVarianceStatistics merged;
+        
+        if (gv_stats_list.empty()) {
+            return merged;
+        }
+        
+        // Initialize with first valid statistics
+        for (const auto& stats : gv_stats_list) {
+            if (stats.feature_dimension > 0) {
+                merged.initialize(stats.feature_dimension);
+                break;
+            }
+        }
+        
+        if (merged.feature_dimension == 0) {
+            return merged;
+        }
+        
+        // Simple averaging approach for merging
+        int valid_count = 0;
+        for (const auto& stats : gv_stats_list) {
+            if (stats.feature_dimension == merged.feature_dimension) {
+                if (valid_count == 0) {
+                    merged.global_gv_mean = stats.global_gv_mean;
+                    merged.global_gv_var = stats.global_gv_var;
+                } else {
+                    merged.global_gv_mean = (merged.global_gv_mean * valid_count + stats.global_gv_mean) / (valid_count + 1);
+                    merged.global_gv_var = (merged.global_gv_var * valid_count + stats.global_gv_var) / (valid_count + 1);
+                }
+                merged.total_frames += stats.total_frames;
+                valid_count++;
+                
+                // Merge phoneme statistics
+                for (const auto& pair : stats.phoneme_gv_mean) {
+                    const std::string& phoneme = pair.first;
+                    if (merged.phoneme_gv_mean.find(phoneme) == merged.phoneme_gv_mean.end()) {
+                        merged.phoneme_gv_mean[phoneme] = pair.second;
+                        auto var_it = stats.phoneme_gv_var.find(phoneme);
+                        if (var_it != stats.phoneme_gv_var.end()) {
+                            merged.phoneme_gv_var[phoneme] = var_it->second;
+                        }
+                        auto count_it = stats.phoneme_frame_counts.find(phoneme);
+                        if (count_it != stats.phoneme_frame_counts.end()) {
+                            merged.phoneme_frame_counts[phoneme] = count_it->second;
+                        }
+                    } else {
+                        // Average existing phoneme statistics
+                        merged.phoneme_gv_mean[phoneme] = 
+                            (merged.phoneme_gv_mean[phoneme] + pair.second) / 2.0;
+                    }
+                }
+            }
+        }
+        
+        return merged;
+    }
+
+    // Private helper methods
+    Eigen::VectorXd GlobalVarianceCalculator::compute_frame_wise_variance(
+        const std::vector<Eigen::VectorXd>& frames) const {
+        
+        if (frames.empty()) {
+            return Eigen::VectorXd();
+        }
+        
+        int dim = frames[0].size();
+        Eigen::VectorXd mean = Eigen::VectorXd::Zero(dim);
+        Eigen::VectorXd variance = Eigen::VectorXd::Zero(dim);
+        
+        // Calculate mean
+        for (const auto& frame : frames) {
+            if (frame.size() == dim) {
+                mean += frame;
+            }
+        }
+        mean /= static_cast<double>(frames.size());
+        
+        // Calculate variance
+        for (const auto& frame : frames) {
+            if (frame.size() == dim) {
+                Eigen::VectorXd diff = frame - mean;
+                variance += diff.cwiseProduct(diff);
+            }
+        }
+        variance /= static_cast<double>(frames.size());
+        
+        // Ensure minimum variance for numerical stability
+        for (int i = 0; i < dim; ++i) {
+            variance[i] = std::max(variance[i], MIN_VARIANCE);
+        }
+        
+        return variance;
+    }
+
+    void GlobalVarianceCalculator::accumulate_phoneme_statistics(
+        std::map<std::string, std::vector<Eigen::VectorXd>>& phoneme_frames,
+        const std::vector<Eigen::VectorXd>& sequence,
+        const std::vector<std::string>& phoneme_labels) const {
+        
+        size_t min_size = std::min(sequence.size(), phoneme_labels.size());
+        
+        for (size_t i = 0; i < min_size; ++i) {
+            const std::string& phoneme = phoneme_labels[i];
+            phoneme_frames[phoneme].push_back(sequence[i]);
+        }
+    }
+
+    void GlobalVarianceCalculator::accumulate_alignment_statistics(
+        std::map<std::string, std::vector<Eigen::VectorXd>>& phoneme_frames,
+        const std::vector<Eigen::VectorXd>& sequence,
+        const SequenceAlignment& alignment) const {
+        
+        for (const auto& boundary : alignment.phoneme_boundaries) {
+            if (boundary.start_frame >= 0 && 
+                boundary.end_frame <= static_cast<int>(sequence.size()) && 
+                boundary.start_frame < boundary.end_frame) {
+                
+                for (int i = boundary.start_frame; i < boundary.end_frame; ++i) {
+                    phoneme_frames[boundary.phoneme].push_back(sequence[i]);
+                }
+            }
+        }
+    }
+
+    double GlobalVarianceCalculator::safe_variance(const std::vector<double>& values) const {
+        if (values.empty()) {
+            return MIN_VARIANCE;
+        }
+        
+        double mean = 0.0;
+        for (double val : values) {
+            mean += val;
+        }
+        mean /= static_cast<double>(values.size());
+        
+        double variance = 0.0;
+        for (double val : values) {
+            double diff = val - mean;
+            variance += diff * diff;
+        }
+        variance /= static_cast<double>(values.size());
+        
+        return std::max(variance, MIN_VARIANCE);
+    }
+
+    Eigen::VectorXd GlobalVarianceCalculator::safe_vector_variance(
+        const std::vector<Eigen::VectorXd>& vectors) const {
+        
+        if (vectors.empty()) {
+            return Eigen::VectorXd();
+        }
+        
+        return compute_frame_wise_variance(vectors);
+    }
+
+    std::string GlobalVarianceCalculator::serialize_vector_to_json(const Eigen::VectorXd& vec) const {
+        std::ostringstream oss;
+        oss << "[";
+        for (int i = 0; i < vec.size(); ++i) {
+            if (i > 0) oss << ", ";
+            oss << vec[i];
+        }
+        oss << "]";
+        return oss.str();
+    }
+
+    Eigen::VectorXd GlobalVarianceCalculator::deserialize_vector_from_json(const std::string& json_str) const {
+        // Placeholder implementation - would use proper JSON parsing
+        return Eigen::VectorXd();
+    }
+
 } // namespace hmm
 } // namespace nexussynth
