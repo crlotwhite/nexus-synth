@@ -28,3 +28,5 @@ build/
 build-*/
 build_*/
 install/
+.cpm_cache/
+*_backup/
