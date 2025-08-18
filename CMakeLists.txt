@@ -88,6 +88,14 @@ add_subdirectory(external/asmjit)
 # cJSON (JSON processing)
 add_subdirectory(external/cJSON)
 
+# Google Test for unit testing
+find_package(GTest REQUIRED)
+if(GTest_FOUND)
+    message(STATUS "Found Google Test: ${GTEST_LIBRARIES}")
+else()
+    message(FATAL_ERROR "Google Test not found. Install with: sudo apt-get install libgtest-dev")
+endif()
+
 # Enable testing
 enable_testing()
 

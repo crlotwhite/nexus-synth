@@ -123,34 +123,5 @@ set_target_properties(test_midi_phoneme_integrator PROPERTIES
     CXX_STANDARD_REQUIRED ON
 )
 
-# Create parallel HMM training test executable
-add_executable(test_parallel_hmm_training ../test_parallel_hmm_training.cpp)
-target_link_libraries(test_parallel_hmm_training nexussynth_lib)
-set_target_properties(test_parallel_hmm_training PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED ON
-)
-
-# Create MLPG engine test executable
-add_executable(test_mlpg_engine ../test_mlpg_engine.cpp)
-target_link_libraries(test_mlpg_engine nexussynth_lib)
-set_target_properties(test_mlpg_engine PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED ON
-)
-
-# Create PbP synthesis engine test executable
-add_executable(test_pbp_synthesis_engine ../test_pbp_synthesis_engine.cpp)
-target_link_libraries(test_pbp_synthesis_engine nexussynth_lib)
-set_target_properties(test_pbp_synthesis_engine PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED ON
-)
-
-# Create FFT performance test executable
-add_executable(test_fft_performance ../test_fft_performance.cpp)
-target_link_libraries(test_fft_performance nexussynth_lib)
-set_target_properties(test_fft_performance PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED ON
-)
+# Note: Test executables are now managed in tests/CMakeLists.txt
+# All test_*.cpp files have been moved to the tests/ directory for better organization
