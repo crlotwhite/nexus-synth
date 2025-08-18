@@ -15,6 +15,16 @@ namespace synthesis {
 
     PbpSynthesisEngine::PbpSynthesisEngine(const PbpConfig& config)
         : config_(config) {
+        
+        // Initialize high-performance FFT manager
+        transforms::FftConfig fft_config;
+        fft_config.backend = transforms::FftBackend::EIGEN_DEFAULT;
+        fft_config.enable_plan_caching = true;
+        fft_config.max_cache_size = 64;  // Cache plans for common FFT sizes
+        fft_config.enable_multithreading = (config_.synthesis_threads > 1);
+        
+        fft_manager_ = std::make_unique<transforms::FftTransformManager>(fft_config);
+        
         initialize_engine();
     }
 
@@ -42,6 +52,12 @@ namespace synthesis {
         // Precompute synthesis tables for optimization
         if (config_.use_fast_fft) {
             precompute_synthesis_tables();
+            
+            // Precompute FFT plans for common synthesis sizes
+            std::vector<size_t> common_fft_sizes = {
+                256, 512, 1024, 2048, 4096, 8192
+            };
+            fft_manager_->precompute_plans(common_fft_sizes);
         }
         
         engine_initialized_ = true;
@@ -309,25 +325,45 @@ namespace synthesis {
         const std::vector<std::complex<double>>& spectrum,
         std::vector<double>& pulse_waveform) {
         
-        pulse_waveform.resize(config_.fft_size, 0.0);
+        if (!fft_manager_) {
+            throw std::runtime_error("FFT Transform Manager not initialized");
+        }
         
-        // Simple IDFT implementation (for production, use FFTW or similar)
-        for (int n = 0; n < config_.fft_size; ++n) {
-            std::complex<double> sum(0.0, 0.0);
+        // Use high-performance FFT for pulse synthesis (replaces O(n²) DFT)
+        bool success = fft_manager_->synthesize_pulse_from_spectrum(
+            spectrum, 
+            pulse_waveform, 
+            true  // Apply normalization
+        );
+        
+        if (!success) {
+            std::cerr << "Warning: FFT synthesis failed, falling back to DFT" << std::endl;
             
-            for (size_t k = 0; k < spectrum.size() && k < static_cast<size_t>(config_.fft_size / 2 + 1); ++k) {
-                double angle = TWO_PI * k * n / config_.fft_size;
-                std::complex<double> exponential(std::cos(angle), std::sin(angle));
-                sum += spectrum[k] * exponential;
+            // Fallback to original DFT implementation if FFT fails
+            pulse_waveform.resize(config_.fft_size, 0.0);
+            
+            for (int n = 0; n < config_.fft_size; ++n) {
+                std::complex<double> sum(0.0, 0.0);
                 
-                // Handle negative frequencies (conjugate symmetry)
-                if (k > 0 && k < static_cast<size_t>(config_.fft_size / 2)) {
-                    std::complex<double> conjugate_exp(std::cos(-angle), std::sin(-angle));
-                    sum += std::conj(spectrum[k]) * conjugate_exp;
+                for (size_t k = 0; k < spectrum.size() && k < static_cast<size_t>(config_.fft_size / 2 + 1); ++k) {
+                    double angle = TWO_PI * k * n / config_.fft_size;
+                    std::complex<double> exponential(std::cos(angle), std::sin(angle));
+                    sum += spectrum[k] * exponential;
+                    
+                    // Handle negative frequencies (conjugate symmetry)
+                    if (k > 0 && k < static_cast<size_t>(config_.fft_size / 2)) {
+                        std::complex<double> conjugate_exp(std::cos(-angle), std::sin(-angle));
+                        sum += std::conj(spectrum[k]) * conjugate_exp;
+                    }
                 }
+                
+                pulse_waveform[n] = sum.real() / config_.fft_size;
             }
-            
-            pulse_waveform[n] = sum.real() / config_.fft_size;
+        }
+        
+        // Ensure output size matches expected FFT size
+        if (pulse_waveform.size() != config_.fft_size) {
+            pulse_waveform.resize(config_.fft_size, 0.0);
         }
     }
 

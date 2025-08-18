@@ -8,6 +8,7 @@
 #include <Eigen/Dense>
 #include "world_wrapper.h"
 #include "mlpg_engine.h"
+#include "fft_transform_manager.h"
 
 namespace nexussynth {
 namespace synthesis {
@@ -208,6 +209,9 @@ namespace synthesis {
         // FFT workspace
         std::vector<std::complex<double>> fft_buffer_;
         std::vector<std::complex<double>> spectrum_buffer_;
+        
+        // High-performance FFT manager
+        std::unique_ptr<transforms::FftTransformManager> fft_manager_;
         
         // Streaming state
         bool streaming_active_ = false;

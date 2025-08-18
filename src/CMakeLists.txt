@@ -14,6 +14,7 @@ set(NEXUSSYNTH_LIB_SOURCES
     hmm_trainer.cpp
     mlpg_engine.cpp
     pbp_synthesis_engine.cpp
+    fft_transform_manager.cpp
 )
 
 # Create library
@@ -142,6 +143,14 @@ set_target_properties(test_mlpg_engine PROPERTIES
 add_executable(test_pbp_synthesis_engine ../test_pbp_synthesis_engine.cpp)
 target_link_libraries(test_pbp_synthesis_engine nexussynth_lib)
 set_target_properties(test_pbp_synthesis_engine PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+)
+
+# Create FFT performance test executable
+add_executable(test_fft_performance ../test_fft_performance.cpp)
+target_link_libraries(test_fft_performance nexussynth_lib)
+set_target_properties(test_fft_performance PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
 )
