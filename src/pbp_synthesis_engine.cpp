@@ -38,6 +38,13 @@ namespace synthesis {
             throw std::invalid_argument("Invalid synthesis configuration parameters");
         }
 
+        // Calculate overlap parameters
+        overlap_length_ = config_.fft_size - config_.hop_size;
+        if (overlap_length_ < 0) {
+            std::cerr << "Warning: hop_size >= fft_size, no overlap will occur" << std::endl;
+            overlap_length_ = 0;
+        }
+        
         // Allocate buffers
         allocate_synthesis_buffers();
         
@@ -169,6 +176,11 @@ namespace synthesis {
         
         // Trim synthesis buffer to actual duration
         synthesis_buffer_.resize(duration_samples);
+        
+        // Apply final boundary smoothing to prevent artifacts at start/end
+        if (synthesis_buffer_.size() > 64) {
+            smooth_boundaries(synthesis_buffer_, 32);
+        }
         
         // Calculate final statistics
         auto end_time = std::chrono::high_resolution_clock::now();
@@ -384,11 +396,161 @@ namespace synthesis {
         int pulse_position,
         std::vector<double>& synthesis_buffer) {
         
-        for (size_t i = 0; i < pulse.size(); ++i) {
-            int buffer_index = pulse_position + i;
-            if (buffer_index >= 0 && buffer_index < static_cast<int>(synthesis_buffer.size())) {
-                synthesis_buffer[buffer_index] += pulse[i];
+        if (pulse.empty() || pulse_position < 0) return;
+        
+        // Enhanced overlap-add with boundary handling
+        const size_t pulse_size = pulse.size();
+        const size_t buffer_size = synthesis_buffer.size();
+        
+        // Calculate overlap region boundaries
+        int overlap_start = std::max(0, pulse_position);
+        int overlap_end = std::min(static_cast<int>(buffer_size), pulse_position + static_cast<int>(pulse_size));
+        
+        if (overlap_start >= overlap_end) return;
+        
+        // Check if this pulse overlaps with existing content
+        bool has_overlap = false;
+        for (int i = overlap_start; i < overlap_end; ++i) {
+            if (std::abs(synthesis_buffer[i]) > 1e-10) {
+                has_overlap = true;
+                break;
             }
+        }
+        
+        if (!has_overlap) {
+            // No overlap - simple copy
+            for (size_t i = 0; i < pulse_size; ++i) {
+                int buffer_index = pulse_position + i;
+                if (buffer_index >= 0 && buffer_index < static_cast<int>(buffer_size)) {
+                    synthesis_buffer[buffer_index] = pulse[i];
+                }
+            }
+        } else {
+            // Has overlap - apply crossfading
+            int crossfade_length = std::min(overlap_length_, 
+                                           std::min(static_cast<int>(pulse_size), 
+                                                  overlap_end - overlap_start));
+            
+            if (crossfade_length > 0) {
+                // Extract overlapping region from synthesis buffer
+                std::vector<double> existing_overlap(crossfade_length);
+                std::vector<double> new_overlap(crossfade_length);
+                
+                for (int i = 0; i < crossfade_length; ++i) {
+                    int buffer_idx = overlap_start + i;
+                    int pulse_idx = i;
+                    
+                    if (buffer_idx < static_cast<int>(buffer_size)) {
+                        existing_overlap[i] = synthesis_buffer[buffer_idx];
+                    }
+                    if (pulse_idx < static_cast<int>(pulse_size)) {
+                        new_overlap[i] = pulse[pulse_idx];
+                    }
+                }
+                
+                // Apply crossfade and update buffer
+                std::vector<double> crossfaded_overlap(crossfade_length);
+                apply_crossfade(existing_overlap, new_overlap, crossfade_length, crossfaded_overlap);
+                
+                // Write crossfaded region back to buffer
+                for (int i = 0; i < crossfade_length; ++i) {
+                    int buffer_idx = overlap_start + i;
+                    if (buffer_idx < static_cast<int>(buffer_size)) {
+                        synthesis_buffer[buffer_idx] = crossfaded_overlap[i];
+                    }
+                }
+                
+                // Add remaining non-overlapping part of pulse
+                for (size_t i = crossfade_length; i < pulse_size; ++i) {
+                    int buffer_index = pulse_position + i;
+                    if (buffer_index >= 0 && buffer_index < static_cast<int>(buffer_size)) {
+                        synthesis_buffer[buffer_index] += pulse[i];
+                    }
+                }
+            } else {
+                // Fallback to simple addition for very short overlaps
+                for (size_t i = 0; i < pulse_size; ++i) {
+                    int buffer_index = pulse_position + i;
+                    if (buffer_index >= 0 && buffer_index < static_cast<int>(buffer_size)) {
+                        synthesis_buffer[buffer_index] += pulse[i];
+                    }
+                }
+            }
+        }
+    }
+
+    int PbpSynthesisEngine::streaming_overlap_add(
+        const std::vector<double>& pulse,
+        int pulse_position,
+        double* output_buffer,
+        int buffer_size) {
+        
+        if (!output_buffer || buffer_size <= 0 || pulse.empty()) {
+            return 0;
+        }
+        
+        int samples_written = 0;
+        
+        // Handle overlap with previous buffer content
+        for (size_t i = 0; i < pulse.size() && (pulse_position + i) < buffer_size; ++i) {
+            int buffer_idx = pulse_position + i;
+            if (buffer_idx >= 0 && buffer_idx < buffer_size) {
+                output_buffer[buffer_idx] += pulse[i];
+                samples_written = std::max(samples_written, buffer_idx + 1);
+            }
+        }
+        
+        return samples_written;
+    }
+
+    void PbpSynthesisEngine::apply_crossfade(
+        const std::vector<double>& buffer1,
+        const std::vector<double>& buffer2,
+        int crossfade_length,
+        std::vector<double>& output_buffer) {
+        
+        crossfade_length = std::min(crossfade_length, 
+                                   std::min(static_cast<int>(buffer1.size()), 
+                                           static_cast<int>(buffer2.size())));
+        
+        output_buffer.resize(crossfade_length);
+        
+        for (int i = 0; i < crossfade_length; ++i) {
+            // Linear crossfade (can be enhanced with different fade curves)
+            double fade_factor = static_cast<double>(i) / (crossfade_length - 1);
+            
+            // Apply fade curve - use raised cosine for smoother transition
+            double smooth_factor = 0.5 * (1.0 - std::cos(PI * fade_factor));
+            
+            output_buffer[i] = buffer1[i] * (1.0 - smooth_factor) + 
+                              buffer2[i] * smooth_factor;
+        }
+    }
+
+    void PbpSynthesisEngine::smooth_boundaries(
+        std::vector<double>& buffer,
+        int boundary_length) {
+        
+        if (buffer.size() < static_cast<size_t>(boundary_length * 2) || boundary_length <= 0) {
+            return;
+        }
+        
+        // Smooth beginning boundary
+        for (int i = 0; i < boundary_length; ++i) {
+            double fade_in = static_cast<double>(i) / (boundary_length - 1);
+            // Use raised cosine window for smooth fade-in
+            double smooth_factor = 0.5 * (1.0 - std::cos(PI * fade_in));
+            buffer[i] *= smooth_factor;
+        }
+        
+        // Smooth ending boundary
+        size_t buffer_size = buffer.size();
+        for (int i = 0; i < boundary_length; ++i) {
+            size_t idx = buffer_size - boundary_length + i;
+            double fade_out = 1.0 - static_cast<double>(i) / (boundary_length - 1);
+            // Use raised cosine window for smooth fade-out
+            double smooth_factor = 0.5 * (1.0 - std::cos(PI * fade_out));
+            buffer[idx] *= smooth_factor;
         }
     }
 
@@ -478,6 +640,12 @@ namespace synthesis {
         if (config_.buffer_size > 0) {
             overlap_buffer_.resize(config_.buffer_size, 0.0);
         }
+        
+        // Enhanced overlap-add buffers
+        if (overlap_length_ > 0) {
+            overlap_accumulator_.resize(overlap_length_, 0.0);
+            crossfade_buffer_.resize(overlap_length_, 0.0);
+        }
     }
 
     void PbpSynthesisEngine::deallocate_synthesis_buffers() {
@@ -486,6 +654,12 @@ namespace synthesis {
         
         overlap_buffer_.clear();
         overlap_buffer_.shrink_to_fit();
+        
+        // Enhanced overlap-add buffers
+        overlap_accumulator_.clear();
+        overlap_accumulator_.shrink_to_fit();
+        crossfade_buffer_.clear();
+        crossfade_buffer_.shrink_to_fit();
         
         fft_buffer_.clear();
         spectrum_buffer_.clear();

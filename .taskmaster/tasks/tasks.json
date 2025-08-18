@@ -530,7 +530,7 @@
               "7.2"
             ],
             "details": "펄스별 생성된 파형 조각들을 시간축상에서 적절히 중첩하여 연속 파형 생성. 중첩 구간 계산 및 가산 처리, 경계 부분 매끄러운 연결 구현",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -778,7 +778,7 @@
     ],
     "metadata": {
       "created": "2025-08-16T15:50:51.347Z",
-      "updated": "2025-08-18T11:31:36.313Z",
+      "updated": "2025-08-18T15:17:22.605Z",
       "description": "Tasks for master context"
     }
   }

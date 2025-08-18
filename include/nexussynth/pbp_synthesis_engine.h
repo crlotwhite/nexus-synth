@@ -198,6 +198,27 @@ namespace synthesis {
          */
         int finalize_streaming(double* output_buffer, int buffer_size);
 
+        // Testing interface - exposed methods for unit testing
+        std::vector<double> generate_window_for_testing(int length, PbpConfig::WindowType type) {
+            return generate_window(length, type);
+        }
+        
+        void overlap_add_pulse_for_testing(const std::vector<double>& pulse, int position, std::vector<double>& buffer) {
+            overlap_add_pulse(pulse, position, buffer);
+        }
+        
+        void apply_crossfade_for_testing(const std::vector<double>& b1, const std::vector<double>& b2, int length, std::vector<double>& out) {
+            apply_crossfade(b1, b2, length, out);
+        }
+        
+        void smooth_boundaries_for_testing(std::vector<double>& buffer, int length = 32) {
+            smooth_boundaries(buffer, length);
+        }
+        
+        int streaming_overlap_add_for_testing(const std::vector<double>& pulse, int pos, double* buffer, int size) {
+            return streaming_overlap_add(pulse, pos, buffer, size);
+        }
+
     private:
         PbpConfig config_;
         
@@ -218,6 +239,12 @@ namespace synthesis {
         std::vector<double> overlap_buffer_;
         int current_frame_ = 0;
         double synthesis_time_ = 0.0;
+        
+        // Enhanced overlap-add state
+        std::vector<double> overlap_accumulator_;     // Accumulates overlapping samples
+        std::vector<double> crossfade_buffer_;        // Buffer for smooth transitions
+        int overlap_length_;                          // Length of overlap region
+        double overlap_fade_factor_ = 0.5;           // Crossfade strength
 
         // Core synthesis algorithms
         /**
@@ -289,7 +316,9 @@ namespace synthesis {
         );
 
         /**
-         * @brief Perform overlap-add to combine pulses
+         * @brief Perform enhanced overlap-add to combine pulses
+         * 
+         * Advanced overlap-add with boundary smoothing and crossfading
          * 
          * @param pulse Current pulse to add
          * @param pulse_position Position in synthesis buffer
@@ -299,6 +328,48 @@ namespace synthesis {
             const std::vector<double>& pulse,
             int pulse_position,
             std::vector<double>& synthesis_buffer
+        );
+        
+        /**
+         * @brief Perform streaming overlap-add for real-time synthesis
+         * 
+         * @param pulse Current pulse to add
+         * @param pulse_position Position relative to current buffer
+         * @param output_buffer Streaming output buffer
+         * @param buffer_size Size of output buffer
+         * @return Number of samples written to output
+         */
+        int streaming_overlap_add(
+            const std::vector<double>& pulse,
+            int pulse_position,
+            double* output_buffer,
+            int buffer_size
+        );
+        
+        /**
+         * @brief Apply crossfade between overlapping regions
+         * 
+         * @param buffer1 First buffer (fade out)
+         * @param buffer2 Second buffer (fade in)
+         * @param crossfade_length Length of crossfade region
+         * @param output_buffer Output blended buffer
+         */
+        void apply_crossfade(
+            const std::vector<double>& buffer1,
+            const std::vector<double>& buffer2,
+            int crossfade_length,
+            std::vector<double>& output_buffer
+        );
+        
+        /**
+         * @brief Smooth boundaries to prevent discontinuities
+         * 
+         * @param buffer Buffer to smooth
+         * @param boundary_length Length of boundary region to smooth
+         */
+        void smooth_boundaries(
+            std::vector<double>& buffer,
+            int boundary_length = 32
         );
 
         // Utility functions
