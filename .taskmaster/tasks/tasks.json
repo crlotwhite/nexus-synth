@@ -418,7 +418,7 @@
         "dependencies": [
           5
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -426,7 +426,7 @@
             "description": "평균·분산 벡터로부터 최적 파라미터 궤적을 생성하는 MLPG 기본 알고리즘 구현",
             "dependencies": [],
             "details": "다이나믹 특징(Δ, ΔΔ)을 포함한 W 행렬 구성, 최대우도 추정식 설정, 수치 안정성 확보를 위한 정규화 적용",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -437,7 +437,7 @@
               "6.1"
             ],
             "details": "SparseMatrix 및 SimplicialLLT/SparseLU solver 설정, 메모리 풀링 및 블록 연산 최적화, 벤치마크용 단위 테스트 작성",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -449,7 +449,7 @@
               "6.2"
             ],
             "details": "Δ·ΔΔ 가중치 행렬 구성, 경계 조건 처리(첫·마지막 프레임), 실시간 체크포인트 저장 기능 추가",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -462,7 +462,7 @@
               "6.3"
             ],
             "details": "GV 행렬 구성·역행렬 계산, 제약 강도 λ 하이퍼파라미터 튜닝, 제약 위반 시 페널티 함수 적용",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -471,7 +471,7 @@
             "description": "입력 문맥 벡터로부터 최적 HMM 상태 경로 탐색 및 MLPG 입력 준비",
             "dependencies": [],
             "details": "결정트리/신경망 기반 상태 결정 모델 통합, 상태 전이 확률 캐싱, 실시간 상태 변경 감지 및 재계산 최적화",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -485,7 +485,7 @@
               "6.4"
             ],
             "details": "cuSPARSE/CLBlast 활용 희소 행렬 연산 벤치마크, CPU 대비 속도·전력 소비 측정, 하이브리드 CPU-GPU 실행 모드 설계",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           }
         ]
@@ -778,7 +778,7 @@
     ],
     "metadata": {
       "created": "2025-08-16T15:50:51.347Z",
-      "updated": "2025-08-18T10:29:34.102Z",
+      "updated": "2025-08-18T11:09:00.441Z",
       "description": "Tasks for master context"
     }
   }
