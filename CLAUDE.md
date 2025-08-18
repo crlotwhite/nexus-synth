@@ -37,17 +37,21 @@ nexus-synth/
 ```
 
 ### Build Commands
-The project uses CMake for building. Basic build setup:
+The project uses CMake with CPM (CMake Package Manager) for automatic dependency management:
 
 ```bash
 mkdir build && cd build
-cmake ..
-make                        # On Linux/macOS
-# OR
-cmake --build .            # Cross-platform
+cmake ..                    # Downloads dependencies automatically on first run
+make -j$(nproc)            # Build with parallel jobs
 ```
 
-**Note**: Project is in early development stage - full CMakeLists.txt is not yet implemented.
+**Build Options:**
+```bash
+cmake -DNEXUSSYNTH_BUILD_TESTS=OFF ..     # Disable tests for faster builds
+cmake -DNEXUSSYNTH_USE_SYSTEM_DEPS=ON ..  # Prefer system-installed dependencies  
+```
+
+**Dependencies are auto-downloaded**: WORLD vocoder, Eigen3, AsmJit, cJSON, Google Test
 
 ### Task Management Commands
 This project heavily uses **Task Master AI** for development workflow:

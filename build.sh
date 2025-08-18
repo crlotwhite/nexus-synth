@@ -28,9 +28,11 @@ mkdir -p build
 cd build
 
 # Configure with CMake
+echo "Configuring build with CPM dependency management..."
 cmake .. \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_INSTALL_PREFIX=../install
+    -DCMAKE_INSTALL_PREFIX=../install \
+    -DNEXUSSYNTH_BUILD_TESTS=ON
 
 # Build with optimal parallel jobs
 NPROC=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)

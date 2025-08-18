@@ -15,6 +15,7 @@ set(NEXUSSYNTH_LIB_SOURCES
     mlpg_engine.cpp
     pbp_synthesis_engine.cpp
     fft_transform_manager.cpp
+    window_optimizer.cpp
 )
 
 # Create library
@@ -26,16 +27,9 @@ set_target_properties(nexussynth_lib PROPERTIES
     CXX_STANDARD_REQUIRED ON
 )
 
-# Add dependency include directories
-target_include_directories(nexussynth_lib PRIVATE 
-    ${CMAKE_SOURCE_DIR}/external/WORLD/src
-    ${CMAKE_SOURCE_DIR}/external/cJSON
-)
-
 # Add include directories for public headers
 target_include_directories(nexussynth_lib PUBLIC
     ${CMAKE_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/external/cJSON
 )
 
 # Create main executable

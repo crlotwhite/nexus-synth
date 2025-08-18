@@ -45,12 +45,24 @@ namespace synthesis {
             overlap_length_ = 0;
         }
         
+        // Initialize window optimizer for advanced windowing
+        if (!window_optimizer_) {
+            window_optimizer_ = std::make_unique<WindowOptimizer>();
+        }
+        
         // Allocate buffers
         allocate_synthesis_buffers();
         
         // Generate window function
         int window_length = static_cast<int>(config_.sample_rate * config_.frame_period / 1000.0 * config_.window_length_factor);
-        window_function_ = generate_window(window_length, config_.window_type);
+        
+        if (config_.enable_adaptive_windowing && config_.window_type == PbpConfig::WindowType::ADAPTIVE) {
+            // For adaptive windowing, we'll generate windows dynamically during synthesis
+            window_function_.resize(window_length, 1.0);  // Default fallback
+            adaptive_window_cache_.resize(window_length, 1.0);
+        } else {
+            window_function_ = generate_window(window_length, config_.window_type);
+        }
         
         // Initialize FFT buffers
         fft_buffer_.resize(config_.fft_size);
@@ -386,8 +398,18 @@ namespace synthesis {
         int window_size = std::min(static_cast<int>(window_function_.size()), static_cast<int>(pulse.size()));
         windowed_pulse.resize(window_size);
         
+        // Use cached adaptive window if available and enabled
+        const std::vector<double>* window_to_use = &window_function_;
+        
+        if (config_.enable_adaptive_windowing && 
+            config_.window_type == PbpConfig::WindowType::ADAPTIVE &&
+            !adaptive_window_cache_.empty() &&
+            adaptive_window_cache_.size() == window_function_.size()) {
+            window_to_use = &adaptive_window_cache_;
+        }
+        
         for (int i = 0; i < window_size; ++i) {
-            windowed_pulse[i] = pulse[i] * window_function_[i];
+            windowed_pulse[i] = pulse[i] * (*window_to_use)[i];
         }
     }
 
@@ -588,6 +610,13 @@ namespace synthesis {
                 }
                 break;
                 
+            case PbpConfig::WindowType::ADAPTIVE:
+                // Adaptive windowing requires content analysis - return default Hann for fallback
+                for (int i = 0; i < length; ++i) {
+                    window[i] = 0.5 * (1.0 - std::cos(TWO_PI * i / (length - 1)));
+                }
+                break;
+                
             default:
                 std::fill(window.begin(), window.end(), 1.0);
         }
@@ -767,6 +796,143 @@ namespace synthesis {
             
             return benchmark_stats;
         }
+    }
+
+    // Enhanced windowing methods implementation
+    std::vector<double> PbpSynthesisEngine::generate_adaptive_window(
+        int length,
+        double f0,
+        const std::vector<double>& spectrum,
+        const std::vector<double>& aperiodicity) {
+        
+        if (!window_optimizer_) {
+            // Fallback to Hann window if optimizer not available
+            return generate_window(length, PbpConfig::WindowType::HANN);
+        }
+        
+        // Analyze content characteristics
+        ContentAnalysis content_analysis = analyze_audio_content(f0, spectrum, aperiodicity);
+        
+        // Configure optimization parameters
+        WindowOptimizationParams params;
+        params.sample_rate = config_.sample_rate;
+        params.fft_size = config_.fft_size;
+        params.hop_factor = static_cast<double>(config_.hop_size) / config_.fft_size;
+        params.side_lobe_suppression_db = config_.side_lobe_suppression_db;
+        params.minimize_pre_echo = config_.minimize_pre_echo;
+        params.optimize_for_overlap_add = true;
+        params.overlap_factor = static_cast<double>(overlap_length_) / config_.fft_size;
+        
+        // Generate optimal window
+        std::vector<double> optimal_window = window_optimizer_->generate_optimal_window(
+            length, content_analysis, params);
+        
+        // Cache the result for potential reuse
+        if (adaptive_window_cache_.size() == optimal_window.size()) {
+            adaptive_window_cache_ = optimal_window;
+        }
+        
+        return optimal_window;
+    }
+
+    ContentAnalysis PbpSynthesisEngine::analyze_audio_content(
+        double f0,
+        const std::vector<double>& spectrum,
+        const std::vector<double>& aperiodicity) {
+        
+        ContentAnalysis analysis;
+        analysis.pitch_frequency = f0;
+        
+        if (spectrum.empty()) {
+            // Default analysis for missing spectrum
+            analysis.spectral_centroid = 1000.0;
+            analysis.harmonic_ratio = 0.7;
+            analysis.transient_factor = 0.2;
+            analysis.spectral_flux = 0.1;
+            analysis.dynamic_range_db = 40.0;
+            return analysis;
+        }
+        
+        // Calculate spectral centroid
+        double weighted_sum = 0.0;
+        double magnitude_sum = 0.0;
+        
+        for (size_t i = 0; i < spectrum.size(); ++i) {
+            double frequency = (i * config_.sample_rate) / (2.0 * spectrum.size());
+            double magnitude = std::exp(spectrum[i]);  // Convert from log domain
+            
+            weighted_sum += frequency * magnitude;
+            magnitude_sum += magnitude;
+        }
+        
+        analysis.spectral_centroid = magnitude_sum > 0.0 ? weighted_sum / magnitude_sum : 1000.0;
+        
+        // Estimate harmonic ratio from aperiodicity
+        if (!aperiodicity.empty()) {
+            double avg_aperiodicity = 0.0;
+            for (double ap : aperiodicity) {
+                avg_aperiodicity += ap;
+            }
+            avg_aperiodicity /= aperiodicity.size();
+            
+            // Lower aperiodicity means more harmonic content
+            analysis.harmonic_ratio = 1.0 - std::min(1.0, avg_aperiodicity);
+        } else {
+            analysis.harmonic_ratio = 0.7;  // Default assumption
+        }
+        
+        // Estimate transient factor from spectral characteristics
+        analysis.transient_factor = std::min(0.8, analysis.spectral_centroid / 4000.0);
+        
+        // Calculate spectral flux (rate of spectral change)
+        analysis.spectral_flux = 0.1;  // Default for single-frame analysis
+        
+        // Estimate dynamic range from spectrum
+        if (spectrum.size() > 1) {
+            double min_magnitude = *std::min_element(spectrum.begin(), spectrum.end());
+            double max_magnitude = *std::max_element(spectrum.begin(), spectrum.end());
+            analysis.dynamic_range_db = std::abs(max_magnitude - min_magnitude);
+        } else {
+            analysis.dynamic_range_db = 40.0;
+        }
+        
+        // Extract formant frequencies (simplified - find spectral peaks)
+        analysis.formant_frequencies.clear();
+        if (spectrum.size() >= 10) {
+            for (size_t i = 2; i < spectrum.size() - 2; ++i) {
+                if (spectrum[i] > spectrum[i-1] && spectrum[i] > spectrum[i+1] &&
+                    spectrum[i] > spectrum[i-2] && spectrum[i] > spectrum[i+2]) {
+                    double formant_freq = (i * config_.sample_rate) / (2.0 * spectrum.size());
+                    if (formant_freq > 200.0 && formant_freq < 4000.0) {
+                        analysis.formant_frequencies.push_back(formant_freq);
+                    }
+                }
+            }
+        }
+        
+        return analysis;
+    }
+
+    void PbpSynthesisEngine::apply_window_optimizations(
+        std::vector<double>& window,
+        const ContentAnalysis& /* content_analysis */) {
+        
+        if (!window_optimizer_) return;
+        
+        // Apply pre-echo suppression if enabled
+        if (config_.minimize_pre_echo) {
+            window_optimizer_->apply_pre_echo_suppression(window, 0.8);
+        }
+        
+        // Apply spectral leakage minimization if enabled
+        if (config_.optimize_spectral_leakage) {
+            window_optimizer_->minimize_spectral_leakage(window, config_.side_lobe_suppression_db);
+        }
+        
+        // Optimize for overlap-add processing
+        int hop_size = config_.hop_size;
+        double overlap_factor = static_cast<double>(overlap_length_) / config_.fft_size;
+        window_optimizer_->optimize_for_overlap_add(window, overlap_factor, hop_size);
     }
 
 } // namespace synthesis

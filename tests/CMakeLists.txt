@@ -45,19 +45,25 @@ function(create_test_executable TEST_NAME TEST_SOURCES)
         nexussynth_lib
         GTest::gtest_main
         GTest::gtest
-        pthread
     )
     
     if(OpenMP_CXX_FOUND)
         target_link_libraries(${TEST_NAME} OpenMP::OpenMP_CXX)
     endif()
     
+    # Dependencies are transitively linked through nexussynth_lib
+    # But we may need to link them directly for some test cases
     target_link_libraries(${TEST_NAME}
         world
         Eigen3::Eigen
         asmjit::asmjit
         cjson
     )
+    
+    # Link pthread on Unix systems
+    if(UNIX)
+        target_link_libraries(${TEST_NAME} pthread)
+    endif()
     
     set_target_properties(${TEST_NAME} PROPERTIES
         CXX_STANDARD 17
@@ -82,11 +88,19 @@ create_test_executable(nexussynth_overlap_add_test "test_overlap_add.cpp")
 set(MAIN_TEST_FILES test_main.cpp test_nexussynth_engine.cpp)
 create_test_executable(nexussynth_main_test "${MAIN_TEST_FILES}")
 
+# Create window optimization test
+create_test_executable(nexussynth_window_optimization_test test_window_optimization.cpp)
+
+# Create window performance benchmark test
+create_test_executable(nexussynth_window_performance_test test_window_performance_benchmark.cpp)
+
 # Create a comprehensive test suite that runs all tests
 add_custom_target(run_all_tests
     COMMAND ${CMAKE_CTEST_COMMAND} --verbose --parallel 4
     DEPENDS 
         nexussynth_overlap_add_test
         nexussynth_main_test
+        nexussynth_window_optimization_test
+        nexussynth_window_performance_test
     COMMENT "Running all NexusSynth tests"
 )

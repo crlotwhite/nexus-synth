@@ -26,4 +26,5 @@ node_modules/
 # build directories
 build/
 build-*/
+build_*/
 install/

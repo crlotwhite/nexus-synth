@@ -57,10 +57,14 @@ if(NOT CMAKE_BUILD_TYPE)
     set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
 
+# Build options
+option(NEXUSSYNTH_BUILD_TESTS "Build NexusSynth tests" ON)
+option(NEXUSSYNTH_BUILD_EXAMPLES "Build NexusSynth examples" OFF)
+option(NEXUSSYNTH_USE_SYSTEM_DEPS "Prefer system-installed dependencies" OFF)
+
 # Project directories
 set(SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 set(INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
-set(LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib)
 set(TESTS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tests)
 
 # Include directories
@@ -75,33 +79,19 @@ else()
     message(WARNING "OpenMP not found - parallel training will be disabled")
 endif()
 
-# External dependencies
-add_subdirectory(external/WORLD)
-
-# Eigen3 (header-only library)
-add_subdirectory(external/Eigen)
-
-# AsmJit (JIT compilation)
-set(ASMJIT_STATIC TRUE)
-add_subdirectory(external/asmjit)
-
-# cJSON (JSON processing)
-add_subdirectory(external/cJSON)
-
-# Google Test for unit testing
-find_package(GTest REQUIRED)
-if(GTest_FOUND)
-    message(STATUS "Found Google Test: ${GTEST_LIBRARIES}")
-else()
-    message(FATAL_ERROR "Google Test not found. Install with: sudo apt-get install libgtest-dev")
-endif()
+# Setup dependencies using CPM
+include(cmake/Dependencies.cmake)
 
 # Enable testing
-enable_testing()
+if(NEXUSSYNTH_BUILD_TESTS)
+    enable_testing()
+endif()
 
 # Add subdirectories
 add_subdirectory(src)
-add_subdirectory(tests)
+if(NEXUSSYNTH_BUILD_TESTS)
+    add_subdirectory(tests)
+endif()
 
 # Generate pkg-config file
 configure_file(nexussynth.pc.in "${CMAKE_BINARY_DIR}/nexussynth.pc" @ONLY)

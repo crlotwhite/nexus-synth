@@ -8,6 +8,7 @@
 #include <Eigen/Dense>
 #include "world_wrapper.h"
 #include "mlpg_engine.h"
+#include "window_optimizer.h"
 #include "fft_transform_manager.h"
 
 namespace nexussynth {
@@ -34,10 +35,17 @@ namespace synthesis {
             HANN,
             HAMMING,
             BLACKMAN,
-            GAUSSIAN
+            GAUSSIAN,
+            ADAPTIVE        // Use adaptive window optimization
         };
         WindowType window_type = WindowType::HANN;
         double window_length_factor = 2.0; // Window length as factor of pitch period
+        
+        // Advanced windowing parameters (when using ADAPTIVE)
+        bool enable_adaptive_windowing = false;     // Enable content-adaptive windows
+        bool minimize_pre_echo = true;              // Apply pre-echo suppression
+        bool optimize_spectral_leakage = true;     // Minimize spectral leakage
+        double side_lobe_suppression_db = -60.0;   // Target side lobe suppression
         
         // Quality control
         bool enable_anti_aliasing = true;  // Enable anti-aliasing for high frequencies
@@ -206,6 +214,20 @@ namespace synthesis {
         void overlap_add_pulse_for_testing(const std::vector<double>& pulse, int position, std::vector<double>& buffer) {
             overlap_add_pulse(pulse, position, buffer);
         }
+
+        std::vector<double> generate_adaptive_window_for_testing(
+            int length, double f0,
+            const std::vector<double>& spectrum,
+            const std::vector<double>& aperiodicity) {
+            return generate_adaptive_window(length, f0, spectrum, aperiodicity);
+        }
+
+        ContentAnalysis analyze_audio_content_for_testing(
+            double f0,
+            const std::vector<double>& spectrum,
+            const std::vector<double>& aperiodicity) {
+            return analyze_audio_content(f0, spectrum, aperiodicity);
+        }
         
         void apply_crossfade_for_testing(const std::vector<double>& b1, const std::vector<double>& b2, int length, std::vector<double>& out) {
             apply_crossfade(b1, b2, length, out);
@@ -226,6 +248,11 @@ namespace synthesis {
         bool engine_initialized_ = false;
         std::vector<double> window_function_;
         std::vector<double> synthesis_buffer_;
+        
+        // Advanced windowing
+        std::unique_ptr<WindowOptimizer> window_optimizer_;
+        ContentAnalysis current_content_analysis_;
+        std::vector<double> adaptive_window_cache_;
         
         // FFT workspace
         std::vector<std::complex<double>> fft_buffer_;
@@ -381,6 +408,44 @@ namespace synthesis {
          * @return Window coefficients
          */
         std::vector<double> generate_window(int length, PbpConfig::WindowType type);
+
+        /**
+         * @brief Generate optimal adaptive window based on content analysis
+         * 
+         * @param length Window length in samples
+         * @param f0 Fundamental frequency for content analysis
+         * @param spectrum Spectral envelope for analysis
+         * @param aperiodicity Aperiodicity for analysis
+         * @return Optimized window coefficients
+         */
+        std::vector<double> generate_adaptive_window(
+            int length, 
+            double f0,
+            const std::vector<double>& spectrum,
+            const std::vector<double>& aperiodicity);
+
+        /**
+         * @brief Analyze audio content for adaptive windowing
+         * 
+         * @param f0 Fundamental frequency
+         * @param spectrum Spectral envelope
+         * @param aperiodicity Aperiodicity coefficients
+         * @return Content analysis results
+         */
+        ContentAnalysis analyze_audio_content(
+            double f0,
+            const std::vector<double>& spectrum,
+            const std::vector<double>& aperiodicity);
+
+        /**
+         * @brief Apply advanced window optimizations
+         * 
+         * @param window Input/output window coefficients
+         * @param content_analysis Content characteristics
+         */
+        void apply_window_optimizations(
+            std::vector<double>& window,
+            const ContentAnalysis& content_analysis);
 
         /**
          * @brief Calculate optimal pulse positions for given F0 contour
