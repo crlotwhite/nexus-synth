@@ -66,6 +66,15 @@ set(TESTS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tests)
 # Include directories
 include_directories(${INCLUDE_DIR})
 
+# OpenMP for parallel processing
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+    message(STATUS "OpenMP found - enabling parallel training support")
+    add_definitions(-DNEXUSSYNTH_OPENMP_ENABLED)
+else()
+    message(WARNING "OpenMP not found - parallel training will be disabled")
+endif()
+
 # External dependencies
 add_subdirectory(external/WORLD)
 

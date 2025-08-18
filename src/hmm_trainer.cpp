@@ -4,9 +4,17 @@
 #include <cmath>
 #include <limits>
 #include <iostream>
+#include <fstream>
+#include <sstream>
 #include <thread>
 #include <future>
 #include <random>
+#include <chrono>
+#include <mutex>
+
+#ifdef NEXUSSYNTH_OPENMP_ENABLED
+#include <omp.h>
+#endif
 
 namespace nexussynth {
 namespace hmm {
@@ -48,14 +56,38 @@ namespace hmm {
         PhonemeHmm previous_model = model;  // For parameter change detection
         
         for (int iteration = 0; iteration < config_.max_iterations; ++iteration) {
-            // E-Step: Forward-Backward algorithm
+            auto iteration_start = std::chrono::high_resolution_clock::now();
+            
+            // E-Step: Forward-Backward algorithm (parallel or sequential)
             std::vector<ForwardBackwardResult> fb_results;
-            double log_likelihood = em_expectation_step(model, train_data, fb_results);
+            double log_likelihood;
+            
+            auto e_step_start = std::chrono::high_resolution_clock::now();
+            if (config_.enable_parallel_training && train_data.size() > 1) {
+                log_likelihood = parallel_em_expectation_step(model, train_data, fb_results);
+            } else {
+                log_likelihood = em_expectation_step(model, train_data, fb_results);
+            }
+            auto e_step_end = std::chrono::high_resolution_clock::now();
             
             stats.log_likelihoods.push_back(log_likelihood);
             
-            // M-Step: Parameter re-estimation
-            em_maximization_step(model, train_data, fb_results);
+            // Track E-step timing
+            auto e_step_duration = std::chrono::duration_cast<std::chrono::microseconds>(e_step_end - e_step_start);
+            stats.e_step_timings.push_back(e_step_duration.count() / 1e6);
+            
+            // M-Step: Parameter re-estimation (parallel or sequential)
+            auto m_step_start = std::chrono::high_resolution_clock::now();
+            if (config_.enable_parallel_training && train_data.size() > 1) {
+                parallel_em_maximization_step(model, train_data, fb_results);
+            } else {
+                em_maximization_step(model, train_data, fb_results);
+            }
+            auto m_step_end = std::chrono::high_resolution_clock::now();
+            
+            // Track M-step timing
+            auto m_step_duration = std::chrono::duration_cast<std::chrono::microseconds>(m_step_end - m_step_start);
+            stats.m_step_timings.push_back(m_step_duration.count() / 1e6);
             
             // Validation evaluation
             if (!validation_data.empty()) {
@@ -82,6 +114,9 @@ namespace hmm {
             
             if (config_.verbose) {
                 log_iteration_info(iteration, stats);
+                if (config_.verbose_parallel && config_.enable_parallel_training) {
+                    log_parallel_performance(stats, iteration);
+                }
             }
             
             // Convergence check
@@ -325,6 +360,56 @@ namespace hmm {
         return results;
     }
 
+    std::vector<ForwardBackwardResult> HmmTrainer::parallel_batch_forward_backward(const PhonemeHmm& model,
+                                                                                  const std::vector<std::vector<Eigen::VectorXd>>& sequences) const {
+        
+        std::vector<ForwardBackwardResult> results(sequences.size());
+        
+        if (sequences.empty()) {
+            return results;
+        }
+        
+#ifdef NEXUSSYNTH_OPENMP_ENABLED
+        // Determine optimal thread count
+        int num_threads = determine_optimal_thread_count(sequences.size());
+        
+        if (config_.verbose_parallel) {
+            std::cout << "Parallel FB: Using " << num_threads << " threads for " << sequences.size() << " sequences" << std::endl;
+        }
+        
+        // Create load-balanced chunks if enabled
+        if (config_.enable_load_balancing) {
+            auto chunks = create_load_balanced_chunks(sequences, num_threads);
+            
+            #pragma omp parallel num_threads(num_threads)
+            {
+                int thread_id = omp_get_thread_num();
+                if (thread_id < static_cast<int>(chunks.size())) {
+                    const auto& chunk = chunks[thread_id];
+                    for (int idx : chunk) {
+                        if (idx >= 0 && idx < static_cast<int>(sequences.size())) {
+                            results[idx] = forward_backward(model, sequences[idx]);
+                        }
+                    }
+                }
+            }
+        } else {
+            // Simple parallel loop without load balancing
+            #pragma omp parallel for num_threads(num_threads) schedule(dynamic)
+            for (int i = 0; i < static_cast<int>(sequences.size()); ++i) {
+                results[i] = forward_backward(model, sequences[i]);
+            }
+        }
+#else
+        // Fallback to sequential processing if OpenMP not available
+        for (size_t i = 0; i < sequences.size(); ++i) {
+            results[i] = forward_backward(model, sequences[i]);
+        }
+#endif
+        
+        return results;
+    }
+
     double HmmTrainer::evaluate_model(const PhonemeHmm& model,
                                      const std::vector<std::vector<Eigen::VectorXd>>& test_sequences) const {
         
@@ -362,12 +447,45 @@ namespace hmm {
         return total_frames > 0 ? total_log_likelihood / total_frames : -std::numeric_limits<double>::infinity();
     }
 
+    double HmmTrainer::parallel_em_expectation_step(const PhonemeHmm& model,
+                                                   const std::vector<std::vector<Eigen::VectorXd>>& sequences,
+                                                   std::vector<ForwardBackwardResult>& fb_results) const {
+        
+        fb_results = parallel_batch_forward_backward(model, sequences);
+        
+        double total_log_likelihood = 0.0;
+        int total_frames = 0;
+        
+        // Accumulate results (this part is sequential but very fast)
+        for (size_t i = 0; i < sequences.size(); ++i) {
+            total_log_likelihood += fb_results[i].log_likelihood * sequences[i].size();
+            total_frames += sequences[i].size();
+        }
+        
+        return total_frames > 0 ? total_log_likelihood / total_frames : -std::numeric_limits<double>::infinity();
+    }
+
     void HmmTrainer::em_maximization_step(PhonemeHmm& model,
                                         const std::vector<std::vector<Eigen::VectorXd>>& sequences,
                                         const std::vector<ForwardBackwardResult>& fb_results) {
         
         update_transition_probabilities(model, sequences, fb_results);
         update_emission_probabilities(model, sequences, fb_results);
+    }
+
+    void HmmTrainer::parallel_em_maximization_step(PhonemeHmm& model,
+                                                  const std::vector<std::vector<Eigen::VectorXd>>& sequences,
+                                                  const std::vector<ForwardBackwardResult>& fb_results) {
+        
+        // Parallel parameter updates with thread safety
+        parallel_update_transition_probabilities(model, sequences, fb_results);
+        
+        if (config_.enable_parallel_emission_update) {
+            parallel_update_emission_probabilities(model, sequences, fb_results);
+        } else {
+            // Fall back to sequential emission updates if parallel updates disabled
+            update_emission_probabilities(model, sequences, fb_results);
+        }
     }
 
     void HmmTrainer::update_transition_probabilities(PhonemeHmm& model,
@@ -447,6 +565,147 @@ namespace hmm {
                 if (weights.size() == observations.size()) {
                     // Use proper weighted EM training with Forward-Backward posteriors
                     model.states[i].train_weighted_emissions(observations, weights, 50);  // Use reasonable default for GMM EM
+                } else {
+                    // Fallback to regular EM if weights don't match
+                    model.states[i].train_emissions(observations, 50);
+                }
+            }
+        }
+    }
+
+    void HmmTrainer::parallel_update_transition_probabilities(PhonemeHmm& model,
+                                                             const std::vector<std::vector<Eigen::VectorXd>>& sequences,
+                                                             const std::vector<ForwardBackwardResult>& fb_results) {
+        
+        const int N = model.num_states();
+        
+        // Thread-safe accumulators for transition statistics
+        std::vector<double> self_loop_counts(N, 0.0);
+        std::vector<double> next_state_counts(N, 0.0);
+        std::vector<double> total_counts(N, 0.0);
+        
+#ifdef NEXUSSYNTH_OPENMP_ENABLED
+        // Use thread-local storage for accumulation
+        const int num_threads = omp_get_max_threads();
+        std::vector<std::vector<double>> thread_self_counts(num_threads, std::vector<double>(N, 0.0));
+        std::vector<std::vector<double>> thread_next_counts(num_threads, std::vector<double>(N, 0.0));
+        std::vector<std::vector<double>> thread_total_counts(num_threads, std::vector<double>(N, 0.0));
+        
+        #pragma omp parallel for
+#endif
+        for (int seq_idx = 0; seq_idx < static_cast<int>(sequences.size()); ++seq_idx) {
+            const auto& sequence = sequences[seq_idx];
+            const auto& fb_result = fb_results[seq_idx];
+            const int T = sequence.size();
+            
+#ifdef NEXUSSYNTH_OPENMP_ENABLED
+            const int thread_id = omp_get_thread_num();
+#endif
+            
+            for (int t = 0; t < T-1; ++t) {
+                for (int i = 0; i < N; ++i) {
+                    double gamma_t_i = fb_result.gamma(t, i);
+                    
+                    // Self-loop transition
+                    double self_loop_prob = fb_result.gamma(t+1, i) * model.states[i].transition.self_loop_prob;
+                    
+                    // Next state transition
+                    double next_state_prob = 0.0;
+                    if (i < N-1) {
+                        next_state_prob = fb_result.gamma(t+1, i+1) * model.states[i].transition.next_state_prob;
+                    }
+                    
+#ifdef NEXUSSYNTH_OPENMP_ENABLED
+                    thread_self_counts[thread_id][i] += gamma_t_i * self_loop_prob;
+                    thread_next_counts[thread_id][i] += gamma_t_i * next_state_prob;
+                    thread_total_counts[thread_id][i] += gamma_t_i;
+#else
+                    self_loop_counts[i] += gamma_t_i * self_loop_prob;
+                    next_state_counts[i] += gamma_t_i * next_state_prob;
+                    total_counts[i] += gamma_t_i;
+#endif
+                }
+            }
+        }
+        
+#ifdef NEXUSSYNTH_OPENMP_ENABLED
+        // Reduce thread-local results
+        for (int t = 0; t < num_threads; ++t) {
+            for (int i = 0; i < N; ++i) {
+                self_loop_counts[i] += thread_self_counts[t][i];
+                next_state_counts[i] += thread_next_counts[t][i];
+                total_counts[i] += thread_total_counts[t][i];
+            }
+        }
+#endif
+        
+        // Update transition probabilities (this must be sequential)
+        for (int i = 0; i < N; ++i) {
+            if (total_counts[i] > 0.0) {
+                model.states[i].transition.self_loop_prob = self_loop_counts[i] / total_counts[i];
+                model.states[i].transition.next_state_prob = next_state_counts[i] / total_counts[i];
+                
+                // Normalize for numerical stability
+                model.states[i].transition.normalize();
+            }
+        }
+    }
+
+    void HmmTrainer::parallel_update_emission_probabilities(PhonemeHmm& model,
+                                                           const std::vector<std::vector<Eigen::VectorXd>>& sequences,
+                                                           const std::vector<ForwardBackwardResult>& fb_results) {
+        
+        const int N = model.num_states();
+        
+        // Parallel collection of observations for each state
+        std::vector<std::vector<Eigen::VectorXd>> all_observations(N);
+        std::vector<std::vector<double>> all_weights(N);
+        
+#ifdef NEXUSSYNTH_OPENMP_ENABLED
+        // Use critical sections for thread-safe vector operations
+        #pragma omp parallel for
+#endif
+        for (int i = 0; i < N; ++i) {
+            std::vector<Eigen::VectorXd> observations;
+            std::vector<double> weights;
+            
+            // Collect observations for state i across all sequences
+            for (size_t seq_idx = 0; seq_idx < sequences.size(); ++seq_idx) {
+                const auto& sequence = sequences[seq_idx];
+                const auto& fb_result = fb_results[seq_idx];
+                const int T = sequence.size();
+                
+                for (int t = 0; t < T; ++t) {
+                    double weight = fb_result.gamma(t, i);
+                    if (weight > 1e-10) {  // Avoid numerical issues
+                        observations.push_back(sequence[t]);
+                        weights.push_back(weight);
+                    }
+                }
+            }
+            
+            // Store results in thread-safe way
+#ifdef NEXUSSYNTH_OPENMP_ENABLED
+            #pragma omp critical
+#endif
+            {
+                all_observations[i] = std::move(observations);
+                all_weights[i] = std::move(weights);
+            }
+        }
+        
+        // Train GMM for each state (can be parallelized since states are independent)
+#ifdef NEXUSSYNTH_OPENMP_ENABLED
+        #pragma omp parallel for
+#endif
+        for (int i = 0; i < N; ++i) {
+            const auto& observations = all_observations[i];
+            const auto& weights = all_weights[i];
+            
+            if (!observations.empty()) {
+                if (weights.size() == observations.size()) {
+                    // Use proper weighted EM training with Forward-Backward posteriors
+                    model.states[i].train_weighted_emissions(observations, weights, 50);
                 } else {
                     // Fallback to regular EM if weights don't match
                     model.states[i].train_emissions(observations, 50);
@@ -1633,7 +1892,7 @@ namespace hmm {
         return file.good();
     }
 
-    bool GlobalVarianceCalculator::load_gv_statistics(GlobalVarianceStatistics& gv_stats, 
+    bool GlobalVarianceCalculator::load_gv_statistics(GlobalVarianceStatistics& /* gv_stats */, 
                                                      const std::string& filepath) const {
         // Simplified JSON loading - in practice would use a proper JSON library
         std::ifstream file(filepath);
@@ -1838,9 +2097,104 @@ namespace hmm {
         return oss.str();
     }
 
-    Eigen::VectorXd GlobalVarianceCalculator::deserialize_vector_from_json(const std::string& json_str) const {
+    Eigen::VectorXd GlobalVarianceCalculator::deserialize_vector_from_json(const std::string& /* json_str */) const {
         // Placeholder implementation - would use proper JSON parsing
         return Eigen::VectorXd();
+    }
+
+    // Parallel training utility implementations
+    std::vector<std::vector<int>> HmmTrainer::create_load_balanced_chunks(
+        const std::vector<std::vector<Eigen::VectorXd>>& sequences,
+        int num_threads) const {
+        
+        std::vector<std::vector<int>> chunks(num_threads);
+        
+        if (sequences.empty() || num_threads <= 0) {
+            return chunks;
+        }
+        
+        // Calculate sequence weights (lengths)
+        std::vector<std::pair<int, int>> sequence_weights;  // (length, index)
+        for (size_t i = 0; i < sequences.size(); ++i) {
+            sequence_weights.push_back({static_cast<int>(sequences[i].size()), static_cast<int>(i)});
+        }
+        
+        // Sort by sequence length (descending) for better load balancing
+        std::sort(sequence_weights.begin(), sequence_weights.end(), 
+                 [](const std::pair<int, int>& a, const std::pair<int, int>& b) {
+                     return a.first > b.first;
+                 });
+        
+        // Distribute sequences using a greedy approach
+        std::vector<int> thread_loads(num_threads, 0);
+        
+        for (const auto& seq_weight : sequence_weights) {
+            // Find thread with minimum current load
+            int min_load_thread = 0;
+            for (int t = 1; t < num_threads; ++t) {
+                if (thread_loads[t] < thread_loads[min_load_thread]) {
+                    min_load_thread = t;
+                }
+            }
+            
+            // Assign sequence to this thread
+            chunks[min_load_thread].push_back(seq_weight.second);
+            thread_loads[min_load_thread] += seq_weight.first;
+        }
+        
+        return chunks;
+    }
+
+    int HmmTrainer::determine_optimal_thread_count(size_t num_sequences) const {
+        int optimal_threads = config_.num_threads;
+        
+        if (optimal_threads <= 0) {
+#ifdef NEXUSSYNTH_OPENMP_ENABLED
+            optimal_threads = omp_get_max_threads();
+#else
+            optimal_threads = std::thread::hardware_concurrency();
+            if (optimal_threads == 0) optimal_threads = 4;  // Fallback
+#endif
+        }
+        
+        // Don't use more threads than sequences (with minimum sequences per thread)
+        int max_useful_threads = static_cast<int>(num_sequences / std::max(1, config_.min_sequences_per_thread));
+        optimal_threads = std::min(optimal_threads, std::max(1, max_useful_threads));
+        
+        return optimal_threads;
+    }
+
+    double HmmTrainer::calculate_parallel_efficiency(double sequential_time, double parallel_time, int num_threads) const {
+        if (parallel_time <= 0.0 || num_threads <= 0) {
+            return 0.0;
+        }
+        
+        // Parallel efficiency = (Sequential time) / (Parallel time * Num threads)
+        double theoretical_speedup = static_cast<double>(num_threads);
+        double actual_speedup = sequential_time / parallel_time;
+        
+        return actual_speedup / theoretical_speedup;
+    }
+
+    void HmmTrainer::log_parallel_performance(const TrainingStats& stats, int /* iteration */) const {
+        if (stats.e_step_timings.empty() || stats.m_step_timings.empty()) {
+            return;
+        }
+        
+        double e_step_time = stats.e_step_timings.back();
+        double m_step_time = stats.m_step_timings.back();
+        
+        std::cout << "  Parallel Performance - E-Step: " << e_step_time << "s, M-Step: " << m_step_time << "s";
+        
+        if (!stats.parallel_efficiency.empty()) {
+            std::cout << ", Efficiency: " << (stats.parallel_efficiency.back() * 100.0) << "%";
+        }
+        
+#ifdef NEXUSSYNTH_OPENMP_ENABLED
+        std::cout << ", Threads: " << omp_get_max_threads();
+#endif
+        
+        std::cout << std::endl;
     }
 
 } // namespace hmm

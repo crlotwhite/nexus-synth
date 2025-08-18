@@ -389,8 +389,8 @@
               "5.1",
               "5.2"
             ],
-            "details": "데이터 분할 기반 병렬 Forward-Backward 계산, 스레드 안전한 축적 변수 관리, 동적 작업 스케줄링, 캐시 효율성을 고려한 메모리 레이아웃 최적화",
-            "status": "pending",
+            "details": "데이터 분할 기반 병렬 Forward-Backward 계산, 스레드 안전한 축적 변수 관리, 동적 작업 스케줄링, 캐시 효율성을 고려한 메모리 레이아웃 최적화\n<info added on 2025-08-18T06:20:11.223Z>\nOpenMP 지원을 CMakeLists.txt에 추가하고, `TrainingConfig` 구조체에 병렬 처리 관련 설정을 포함한다. E-Step은 시퀀스 길이에 따른 로드 밸런싱을 통해 병렬화하며, M-Step은 스레드 안전한 파라미터 누적 방식으로 구현한다. 성능 모니터링 및 병렬 효율성 지표를 추가하고, 순차 버전과의 정확성 비교를 위한 포괄적인 테스트를 작성한다.\n</info added on 2025-08-18T06:20:11.223Z>\n<info added on 2025-08-18T06:31:11.297Z>\n✅ **구현 완료 - 멀티스레드 훈련 시스템 성공적으로 구현됨**\n\n**주요 구현 사항:**\n- **병렬 E-Step**: `parallel_batch_forward_backward()` 함수를 통해 OpenMP 병렬화 구현. 시퀀스 길이에 따른 로드 밸런싱 및 동적 스레드 수 최적화, 스레드 안전한 Forward-Backward 계산 완료.\n- **스레드 안전 M-Step**: `parallel_update_transition_probabilities()`는 스레드 로컬 누적 방식을, `parallel_update_emission_probabilities()`는 크리티컬 섹션을 사용하여 구현. 스레드 로컬 통계의 적절한 감소(reduction) 처리.\n- **설정 및 성능 모니터링**: `TrainingConfig`에 병렬 처리 옵션(스레드 수, 로드 밸런싱 등) 확장. `TrainingStats`에 타이밍 및 효율성 지표 추가. 디버깅을 위한 병렬 성능 로깅 기능 구현.\n- **포괄적인 테스트**: `test_parallel_hmm_training.cpp`를 생성하여 정확성 검증, 로드 밸런싱 테스트, 엣지 케이스 처리, 순차/병렬 버전 간 성능 비교 수행. 최종 로그-우도(log-likelihood)는 순차 버전과 동일한 결과(차이 ~3.55e-15)를 보이며 정확성 검증 완료.\n\n**기술 구현 상세:**\n- CMake를 통한 OpenMP 자동 감지 및 통합.\n- 스레드 로컬 스토리지를 활용한 스레드 안전 파라미터 누적.\n- 그리디(greedy) 알고리즘 기반의 지능형 로드 밸런싱 구현.\n- 성능 저하 시 순차 처리로의 자동 전환(fallback) 기능.\n- 작은 데이터셋 및 엣지 케이스 처리 로직 포함.\n\n**빌드 통합:**\n- CMakeLists.txt에 OpenMP 의존성 감지 및 `nexussynth_lib`에 OpenMP 라이브러리 링크 완료.\n- 모든 컴파일 경고 해결.\n- 전체 테스트 스위트 통과.\n\n병렬 훈련 시스템은 프로덕션 준비가 완료되었으며, 대규모 데이터셋에서 상당한 속도 향상을 제공하면서도 순차 훈련과 동일한 정확도를 유지합니다.\n</info added on 2025-08-18T06:31:11.297Z>",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -778,7 +778,7 @@
     ],
     "metadata": {
       "created": "2025-08-16T15:50:51.347Z",
-      "updated": "2025-08-18T06:13:20.760Z",
+      "updated": "2025-08-18T06:31:19.149Z",
       "description": "Tasks for master context"
     }
   }

@@ -11,6 +11,7 @@ set(NEXUSSYNTH_LIB_SOURCES
     utau_oto_parser.cpp
     vcv_pattern_recognizer.cpp
     midi_phoneme_integrator.cpp
+    hmm_trainer.cpp
 )
 
 # Create library
@@ -48,6 +49,11 @@ target_link_libraries(nexussynth_lib
     cjson
     ZLIB::ZLIB
 )
+
+# Link OpenMP if available
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(nexussynth_lib OpenMP::OpenMP_CXX)
+endif()
 
 # Link library to executable
 target_link_libraries(nexussynth nexussynth_lib)
@@ -110,6 +116,14 @@ set_target_properties(test_vcv_pattern_recognizer PROPERTIES
 add_executable(test_midi_phoneme_integrator test_midi_phoneme_integrator.cpp)
 target_link_libraries(test_midi_phoneme_integrator nexussynth_lib)
 set_target_properties(test_midi_phoneme_integrator PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+)
+
+# Create parallel HMM training test executable
+add_executable(test_parallel_hmm_training ../test_parallel_hmm_training.cpp)
+target_link_libraries(test_parallel_hmm_training nexussynth_lib)
+set_target_properties(test_parallel_hmm_training PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
 )

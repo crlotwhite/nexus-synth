@@ -34,6 +34,14 @@ namespace hmm {
         bool enable_model_checkpointing;    // Save best models during training
         double convergence_confidence;      // Required confidence for convergence [0-1]
         
+        // Parallel training configuration
+        bool enable_parallel_training;     // Enable multi-threaded EM training
+        int num_threads;                    // Number of threads (0 = auto-detect)
+        bool enable_load_balancing;         // Balance work by sequence lengths
+        int min_sequences_per_thread;       // Minimum sequences per thread
+        bool enable_parallel_emission_update; // Parallel emission parameter updates
+        bool verbose_parallel;              // Extra logging for parallel performance
+        
         TrainingConfig() 
             : max_iterations(100)
             , convergence_threshold(1e-4)
@@ -47,7 +55,13 @@ namespace hmm {
             , patience(10)
             , min_improvement(1e-5)
             , enable_model_checkpointing(true)
-            , convergence_confidence(0.95) {}
+            , convergence_confidence(0.95)
+            , enable_parallel_training(true)
+            , num_threads(0)
+            , enable_load_balancing(true)
+            , min_sequences_per_thread(1)
+            , enable_parallel_emission_update(true)
+            , verbose_parallel(false) {}
     };
 
     /**
@@ -73,6 +87,14 @@ namespace hmm {
         double adaptive_threshold;              // Current adaptive threshold
         std::vector<double> relative_improvements; // Relative improvement per iteration
         
+        // Parallel training performance metrics
+        std::vector<double> parallel_efficiency;    // Parallel efficiency per iteration
+        std::vector<double> e_step_timings;         // E-step execution times (seconds)
+        std::vector<double> m_step_timings;         // M-step execution times (seconds)
+        int max_threads_used;                       // Maximum threads used during training
+        double total_parallel_overhead;             // Total overhead from parallelization
+        std::vector<int> load_balance_efficiency;   // Load balancing effectiveness per iteration
+        
         TrainingStats() 
             : final_iteration(0)
             , converged(false)
@@ -82,7 +104,9 @@ namespace hmm {
             , convergence_confidence(0.0)
             , early_stopped(false)
             , patience_counter(0)
-            , adaptive_threshold(1e-4) {}
+            , adaptive_threshold(1e-4)
+            , max_threads_used(1)
+            , total_parallel_overhead(0.0) {}
     };
 
     /**
@@ -193,6 +217,10 @@ namespace hmm {
         std::vector<ForwardBackwardResult> batch_forward_backward(const PhonemeHmm& model,
                                                                  const std::vector<std::vector<Eigen::VectorXd>>& sequences) const;
         
+        // Parallel batch processing with load balancing
+        std::vector<ForwardBackwardResult> parallel_batch_forward_backward(const PhonemeHmm& model,
+                                                                          const std::vector<std::vector<Eigen::VectorXd>>& sequences) const;
+        
         // Model evaluation
         double evaluate_model(const PhonemeHmm& model,
                             const std::vector<std::vector<Eigen::VectorXd>>& test_sequences) const;
@@ -200,6 +228,14 @@ namespace hmm {
         // Configuration
         void set_config(const TrainingConfig& config) { config_ = config; }
         const TrainingConfig& get_config() const { return config_; }
+        
+        // Public utilities for testing
+        std::vector<std::vector<int>> create_load_balanced_chunks_public(
+            const std::vector<std::vector<Eigen::VectorXd>>& sequences,
+            int num_threads) const { return create_load_balanced_chunks(sequences, num_threads); }
+        
+        int determine_optimal_thread_count_public(size_t num_sequences) const { 
+            return determine_optimal_thread_count(num_sequences); }
         
     private:
         TrainingConfig config_;
@@ -216,6 +252,15 @@ namespace hmm {
         void em_maximization_step(PhonemeHmm& model,
                                 const std::vector<std::vector<Eigen::VectorXd>>& sequences,
                                 const std::vector<ForwardBackwardResult>& fb_results);
+        
+        // Parallel EM algorithm methods
+        double parallel_em_expectation_step(const PhonemeHmm& model,
+                                          const std::vector<std::vector<Eigen::VectorXd>>& sequences,
+                                          std::vector<ForwardBackwardResult>& fb_results) const;
+        
+        void parallel_em_maximization_step(PhonemeHmm& model,
+                                         const std::vector<std::vector<Eigen::VectorXd>>& sequences,
+                                         const std::vector<ForwardBackwardResult>& fb_results);
         
         // Forward-Backward implementation details
         Eigen::VectorXd compute_forward_step(const PhonemeHmm& model,
@@ -264,6 +309,15 @@ namespace hmm {
                                          const std::vector<std::vector<Eigen::VectorXd>>& sequences,
                                          const std::vector<ForwardBackwardResult>& fb_results);
         
+        // Thread-safe parallel parameter update methods
+        void parallel_update_transition_probabilities(PhonemeHmm& model,
+                                                     const std::vector<std::vector<Eigen::VectorXd>>& sequences,
+                                                     const std::vector<ForwardBackwardResult>& fb_results);
+        
+        void parallel_update_emission_probabilities(PhonemeHmm& model,
+                                                   const std::vector<std::vector<Eigen::VectorXd>>& sequences,
+                                                   const std::vector<ForwardBackwardResult>& fb_results);
+        
         // Enhanced convergence detection
         bool check_convergence(TrainingStats& stats) const;
         bool check_log_likelihood_convergence(const std::vector<double>& log_likelihoods, 
@@ -296,6 +350,15 @@ namespace hmm {
         double log_sum_exp(const std::vector<double>& log_values) const;
         void normalize_probabilities(Eigen::VectorXd& probabilities) const;
         Eigen::VectorXd compute_log_probabilities(const std::vector<double>& probabilities) const;
+        
+        // Parallel training utilities
+        std::vector<std::vector<int>> create_load_balanced_chunks(
+            const std::vector<std::vector<Eigen::VectorXd>>& sequences,
+            int num_threads) const;
+        
+        int determine_optimal_thread_count(size_t num_sequences) const;
+        double calculate_parallel_efficiency(double sequential_time, double parallel_time, int num_threads) const;
+        void log_parallel_performance(const TrainingStats& stats, int iteration) const;
         
         // Logging and debugging
         void log_iteration_info(int iteration, const TrainingStats& stats) const;
