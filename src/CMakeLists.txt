@@ -13,6 +13,7 @@ set(NEXUSSYNTH_LIB_SOURCES
     midi_phoneme_integrator.cpp
     hmm_trainer.cpp
     mlpg_engine.cpp
+    pbp_synthesis_engine.cpp
 )
 
 # Create library
@@ -133,6 +134,14 @@ set_target_properties(test_parallel_hmm_training PROPERTIES
 add_executable(test_mlpg_engine ../test_mlpg_engine.cpp)
 target_link_libraries(test_mlpg_engine nexussynth_lib)
 set_target_properties(test_mlpg_engine PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+)
+
+# Create PbP synthesis engine test executable
+add_executable(test_pbp_synthesis_engine ../test_pbp_synthesis_engine.cpp)
+target_link_libraries(test_pbp_synthesis_engine nexussynth_lib)
+set_target_properties(test_pbp_synthesis_engine PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
 )

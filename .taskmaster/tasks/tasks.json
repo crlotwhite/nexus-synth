@@ -500,15 +500,15 @@
         "dependencies": [
           6
         ],
-        "status": "pending",
+        "status": "in-progress",
         "subtasks": [
           {
             "id": 1,
             "title": "PbP 합성 코어 알고리즘 구현",
             "description": "F0 기반 고조파 생성, SP 스펙트럼 필터링, AP 비주기 성분 혼합 로직 구현",
             "dependencies": [],
-            "details": "각 펄스별로 F0 주파수에 맞춰 고조파 구조 생성, SP 파라미터로 스펙트럼 포락선 필터링 적용, AP 파라미터로 비주기적 잡음 성분 혼합. 단일 펄스 단위 처리 함수 설계",
-            "status": "pending",
+            "details": "각 펄스별로 F0 주파수에 맞춰 고조파 구조 생성, SP 파라미터로 스펙트럼 포락선 필터링 적용, AP 파라미터로 비주기적 잡음 성분 혼합. 단일 펄스 단위 처리 함수 설계\n<info added on 2025-08-18T11:18:52.655Z>\n완료된 PbP 합성 코어 알고리즘 구현 결과:\n\n핵심 구현 기능:\n• F0 기반 고조파 생성 (최대 100개 하모닉, 나이퀴스트 주파수 제한)\n• SP 스펙트럼 포락선 필터링으로 자연스러운 음성 특성 구현\n• AP 비주기 성분 혼합으로 현실적인 고주파 잡음 처리\n• 4가지 윈도우 함수 지원 (Hann, Hamming, Blackman, Gaussian)\n• 실시간 스트리밍을 위한 버퍼 관리 시스템\n• 오버랩-애드 방식의 연속 파형 생성\n\n성능 검증 결과:\n• 전체 테스트 스위트 통과 (기본 합성, 윈도우 함수, 단일 펄스, 유틸리티, 에러 처리)\n• 0.5초 오디오 합성 시간: 528ms (평균 프레임당 5.28ms)\n• 총 2,599개 하모닉 성분 생성\n• 피크 진폭 0.0084로 안정적 출력\n\n구현 파일:\n• include/nexussynth/pbp_synthesis_engine.h: PbP 엔진 인터페이스\n• src/pbp_synthesis_engine.cpp: 핵심 알고리즘 (464줄)\n• test_pbp_synthesis_engine.cpp: 종합 테스트 (530줄)\n\n현재 한계사항: 단순 DFT 구현 사용으로 성능 최적화 여지 존재\n</info added on 2025-08-18T11:18:52.655Z>",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -778,7 +778,7 @@
     ],
     "metadata": {
       "created": "2025-08-16T15:50:51.347Z",
-      "updated": "2025-08-18T11:09:00.441Z",
+      "updated": "2025-08-18T11:18:23.411Z",
       "description": "Tasks for master context"
     }
   }
