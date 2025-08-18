@@ -316,7 +316,7 @@
         "dependencies": [
           4
         ],
-        "status": "pending",
+        "status": "in-progress",
         "subtasks": [
           {
             "id": 1,
@@ -354,8 +354,8 @@
             "title": "데이터 증강 및 훈련 데이터 준비 시스템",
             "description": "원본 보이스 데이터에 대한 피치 변환, 시간 스트레칭, 노이즈 추가 등 다양한 데이터 증강 기법 구현",
             "dependencies": [],
-            "details": "피치 시프트(±2 semitones), 시간 스트레칭(0.8x-1.2x), 가우시안 노이즈 추가, 스펙트럼 필터링, 증강된 데이터의 라벨 자동 생성 및 품질 검증",
-            "status": "pending",
+            "details": "피치 시프트(±2 semitones), 시간 스트레칭(0.8x-1.2x), 가우시안 노이즈 추가, 스펙트럼 필터링, 증강된 데이터의 라벨 자동 생성 및 품질 검증\n<info added on 2025-08-18T05:53:16.291Z>\n, WORLD 보코더 인프라(Task 2)를 활용하여 F0 스케일링을 통한 피치 시프트, 프레임 보간을 통한 시간 스트레칭, SP/AP 파라미터에 가우시안 노이즈 주입 방식으로 구현. 모듈형 시스템으로 설계되며, 기존 WORLD 분석/합성 인터페이스(src/world_wrapper.cpp) 및 HMM 훈련 워크플로우(Task 5.1-5.3)와 연동하고 전역 분산 통계(Task 5.6)와의 호환성을 유지한다. 구현은 핵심 증강 클래스 및 파라미터 수정(Phase 1), 품질 검증 및 라벨 관리(Phase 2), 통합 테스트 및 최적화(Phase 3)의 3단계로 진행된다.\n</info added on 2025-08-18T05:53:16.291Z>\n<info added on 2025-08-18T05:58:30.528Z>\n, 구현 완료. 스펙트럼 필터링(±3dB 틸트) 기능이 추가되었으며, 다중 지표(스펙트럼 왜곡, F0 연속성, 다이나믹 레인지)를 활용한 품질 검증 시스템, 배치 처리 및 통계 추적 기능이 구현됨. `include/nexussynth/data_augmentation.h`, `src/data_augmentation.cpp`, `test_data_augmentation.cpp` 파일에 구현되었으며, 모든 단위 테스트(9개 카테고리)를 통과하여 100% 테스트 통과율을 달성함. 기존 WORLD 보코더 인프라, HMM 훈련 데이터 준비(Task 5.1-5.3), 전역 분산 통계(Task 5.6)와의 통합 준비 완료 및 JSON 기반 영속성을 지원함.\n</info added on 2025-08-18T05:58:30.528Z>",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -778,7 +778,7 @@
     ],
     "metadata": {
       "created": "2025-08-16T15:50:51.347Z",
-      "updated": "2025-08-18T05:46:42.126Z",
+      "updated": "2025-08-18T05:59:53.135Z",
       "description": "Tasks for master context"
     }
   }
