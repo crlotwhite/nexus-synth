@@ -17,6 +17,7 @@ set(NEXUSSYNTH_LIB_SOURCES
     fft_transform_manager.cpp
     window_optimizer.cpp
     streaming_buffer_manager.cpp
+    performance_profiler.cpp
 )
 
 # Create library
