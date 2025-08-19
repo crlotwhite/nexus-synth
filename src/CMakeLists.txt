@@ -7,6 +7,7 @@ set(NEXUSSYNTH_LIB_SOURCES
     interface/utau_argument_parser.cpp
     interface/utau_flag_converter.cpp
     interface/utau_logger.cpp
+    interface/utau_error_handler.cpp
     interface/utau_oto_parser.cpp
     
     # Synthesis engine modules

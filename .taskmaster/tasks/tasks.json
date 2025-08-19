@@ -608,8 +608,8 @@
               "8.1",
               "8.2"
             ],
-            "details": "표준 errno 매핑, 사용자 친화적 에러 메시지, 파일 입출력 오류, 파라미터 오류, 내부 처리 오류 구분, exit code 0-255 범위 준수",
-            "status": "pending",
+            "details": "표준 errno 매핑, 사용자 친화적 에러 메시지, 파일 입출력 오류, 파라미터 오류, 내부 처리 오류 구분, exit code 0-255 범위 준수\n<info added on 2025-08-19T09:24:17.950Z>\nCreated `UtauErrorHandler` class with 25+ error codes, multi-language support (English/Korean), error recovery mechanisms, and context management. Updated `UtauArgumentParser` to utilize the new system. Implemented proper exit code mapping where extended codes map to standard 0-7 range. Integrated comprehensively with the logging system. Developed 27 unit tests covering all functionality, including thread safety, compatibility, and error categorization.\n</info added on 2025-08-19T09:24:17.950Z>",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -778,7 +778,7 @@
     ],
     "metadata": {
       "created": "2025-08-16T15:50:51.347Z",
-      "updated": "2025-08-19T09:03:52.920Z",
+      "updated": "2025-08-19T09:24:25.259Z",
       "description": "Tasks for master context"
     }
   }

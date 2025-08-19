@@ -4,7 +4,7 @@
 #include <memory>
 #include "hmm_structures.h"
 #include "context_features.h"
-#include "voice_metadata.h"
+// #include "voice_metadata.h"  // Temporarily disabled due to cJSON issue
 #include "gaussian_mixture.h"
 #include "nvm_format.h"
 

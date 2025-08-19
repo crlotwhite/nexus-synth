@@ -1,5 +1,6 @@
 #include "nexussynth/utau_argument_parser.h"
 #include "nexussynth/utau_logger.h"
+#include "nexussynth/utau_error_handler.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -166,7 +167,7 @@ ResamplerArgs UtauArgumentParser::parse_internal(const std::vector<std::string>&
             if (pitch_opt) {
                 result.pitch = *pitch_opt;
             } else {
-                throw std::invalid_argument("Invalid pitch value: " + args[3]);
+                UTAU_THROW_ERROR(UtauErrorCode::INVALID_PARAMETERS, "Invalid pitch value: " + args[3]);
             }
         }
         
@@ -175,7 +176,7 @@ ResamplerArgs UtauArgumentParser::parse_internal(const std::vector<std::string>&
             if (velocity_opt) {
                 result.velocity = *velocity_opt;
             } else {
-                throw std::invalid_argument("Invalid velocity value: " + args[4]);
+                UTAU_THROW_ERROR(UtauErrorCode::INVALID_PARAMETERS, "Invalid velocity value: " + args[4]);
             }
         }
         
@@ -223,25 +224,35 @@ ResamplerArgs UtauArgumentParser::parse_internal(const std::vector<std::string>&
         // Validate all components
         if (strict_validation_) {
             if (!result.validate_paths()) {
-                throw std::invalid_argument("Invalid file paths or formats");
+                UTAU_THROW_ERROR(UtauErrorCode::FILE_NOT_FOUND, "Invalid file paths or formats");
             }
             
             if (!result.validate_ranges()) {
-                throw std::invalid_argument("Parameter values out of valid range");
+                UTAU_THROW_ERROR(UtauErrorCode::PARAMETER_OUT_OF_RANGE, "Parameter values out of valid range");
             }
             
             if (!result.validate_audio_parameters()) {
-                throw std::invalid_argument("Invalid audio processing parameters");
+                UTAU_THROW_ERROR(UtauErrorCode::INVALID_WAV_FORMAT, "Invalid audio processing parameters");
             }
         }
         
         result.is_valid = true;
         log_debug("Successfully parsed all arguments");
         
+    } catch (const UtauException& e) {
+        result.error_message = e.what();
+        result.is_valid = false;
+        log_error("UTAU parsing failed: " + result.error_message);
+        
+        // Report through error handler for proper categorization
+        UtauErrorHandler::instance().report_error(e.get_error_code(), e.what());
     } catch (const std::exception& e) {
         result.error_message = e.what();
         result.is_valid = false;
         log_error("Parsing failed: " + result.error_message);
+        
+        // Convert generic exception to UTAU error
+        UtauErrorHandler::instance().report_exception(e, "Argument parsing");
     }
     
     if (debug_mode_) {
@@ -259,7 +270,7 @@ bool UtauArgumentParser::validate_argument_count(size_t count) {
 
 std::filesystem::path UtauArgumentParser::process_path_argument(const std::string& path_str) {
     if (path_str.empty()) {
-        throw std::invalid_argument("Empty path provided");
+        UTAU_THROW_ERROR(UtauErrorCode::INVALID_PARAMETERS, "Empty path provided");
     }
     
     // Convert and normalize the path
@@ -499,42 +510,24 @@ bool UtauArgumentParser::is_valid_flag_format(const std::string& flags) {
 }
 
 void UtauArgumentParser::report_error(ResamplerError error, const std::string& details) {
-    std::string error_msg = "Error " + std::to_string(static_cast<int>(error)) + ": " + get_error_description(error);
+    // Convert legacy ResamplerError to new UtauErrorCode
+    UtauErrorCode utau_code = static_cast<UtauErrorCode>(error);
     
+    // Set context for better error reporting
+    auto& error_handler = UtauErrorHandler::instance();
+    error_handler.set_context("component", "UTAU Argument Parser");
     if (!details.empty()) {
-        error_msg += " - " + details;
+        error_handler.set_context("details", details);
     }
     
-    // Log using the UTAU logger system
-    LOG_FATAL(error_msg);
-    
-    // Ensure all logs are flushed before exit
-    UtauLogger::instance().flush();
-    
-    std::exit(static_cast<int>(error));
+    // Report through the comprehensive error handling system
+    error_handler.fatal_exit(utau_code, details.empty() ? get_error_description(error) : details);
 }
 
 std::string UtauArgumentParser::get_error_description(ResamplerError error) {
-    switch (error) {
-        case ResamplerError::SUCCESS:
-            return "Success";
-        case ResamplerError::GENERAL_ERROR:
-            return "General error";
-        case ResamplerError::FILE_NOT_FOUND:
-            return "File not found";
-        case ResamplerError::INVALID_WAV_FORMAT:
-            return "Invalid WAV format";
-        case ResamplerError::OUT_OF_MEMORY:
-            return "Out of memory";
-        case ResamplerError::INVALID_PARAMETERS:
-            return "Invalid parameters";
-        case ResamplerError::UNSUPPORTED_SAMPLE_RATE:
-            return "Unsupported sample rate";
-        case ResamplerError::PROCESSING_ERROR:
-            return "Processing error";
-        default:
-            return "Unknown error";
-    }
+    // Use the new error handler for localized messages
+    UtauErrorCode utau_code = static_cast<UtauErrorCode>(error);
+    return UtauErrorHandler::instance().get_localized_message(utau_code);
 }
 
 // Private helper methods

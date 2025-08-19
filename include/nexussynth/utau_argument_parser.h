@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <climits>
 #include "utau_logger.h"
+#include "utau_error_handler.h"
 
 namespace nexussynth {
 namespace utau {

@@ -5,6 +5,7 @@
 #include <fstream>
 #include <sstream>
 #include <unordered_set>
+#include <numeric>
 
 namespace nexussynth {
 namespace context {
