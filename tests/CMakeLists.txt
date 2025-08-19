@@ -104,6 +104,9 @@ create_test_executable(nexussynth_performance_profiler_test test_performance_pro
 # Create UTAU argument parser test
 create_test_executable(nexussynth_utau_argument_parser_test test_utau_argument_parser.cpp)
 
+# Create UTAU flag converter test  
+create_test_executable(nexussynth_utau_flag_converter_test test_utau_flag_converter.cpp)
+
 # Create additional component tests (moved from src directory)
 create_test_executable(nexussynth_world_wrapper_test test_world_wrapper.cpp)
 create_test_executable(nexussynth_audio_utils_test test_audio_utils.cpp)
@@ -124,6 +127,7 @@ add_custom_target(run_all_tests
         nexussynth_streaming_buffer_test
         nexussynth_performance_profiler_test
         nexussynth_utau_argument_parser_test
+        nexussynth_utau_flag_converter_test
         nexussynth_world_wrapper_test
         nexussynth_audio_utils_test
         nexussynth_compression_checksum_test

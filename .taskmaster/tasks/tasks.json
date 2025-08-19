@@ -596,8 +596,8 @@
             "dependencies": [
               "8.1"
             ],
-            "details": "플래그 문자열 파싱 규칙 정의, 기본값 처리, 범위 검증, 변환 오류 시 graceful degradation, 변환 로그 기록",
-            "status": "pending",
+            "details": "플래그 문자열 파싱 규칙 정의, 기본값 처리, 범위 검증, 변환 오류 시 graceful degradation, 변환 로그 기록\n<info added on 2025-08-19T08:39:50.130Z>\n정교한 플래그-파라미터 매핑을 위한 `UtauFlagConverter` 클래스 및 `NexusSynthParams` 구조체 구현. g(포르만트 시프트), t(텐션), bre(숨소리), bri(밝기) 등 개별 플래그 변환 및 플래그 상호작용 모델링(예: g+t) 포함. 음성 유형(남성/여성/어린이/로봇/속삭임/그로울) 감지 및 자동 파라미터 보정 기능 추가. 안전 제한(safety limiting) 및 플래그 상태 간 부드러운 보간(smooth interpolation) 처리. 성능 최적화.\n</info added on 2025-08-19T08:39:50.130Z>",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -778,7 +778,7 @@
     ],
     "metadata": {
       "created": "2025-08-16T15:50:51.347Z",
-      "updated": "2025-08-19T03:56:19.363Z",
+      "updated": "2025-08-19T08:40:03.842Z",
       "description": "Tasks for master context"
     }
   }
