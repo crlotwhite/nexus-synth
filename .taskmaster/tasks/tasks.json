@@ -654,7 +654,7 @@
               "9.1"
             ],
             "details": "작업 큐 기반 스레드 풀 구현, CPU 코어 수에 따른 동적 스레드 할당, 진행률 콜백 인터페이스 설계, 예상 남은 시간 계산, 중단/재개 기능 지원, 메모리 사용량 모니터링",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -665,7 +665,7 @@
               "9.2"
             ],
             "details": ".nvm 파일 구조 검증, 파라미터 값 범위 체크, 누락된 음소 감지, 오류 로그 JSON 포맷 저장, 시각적 오류 요약 리포트 생성, 변환 실패 원인 분석 및 제안사항 제공",
-            "status": "pending",
+            "status": "in-progress",
             "testStrategy": ""
           },
           {
@@ -673,8 +673,8 @@
             "title": "설정 파일 처리 및 변환 옵션 제어",
             "description": "JSON 기반 설정 파일 파싱 및 변환 프로세스의 동작을 제어하는 옵션 시스템 구현",
             "dependencies": [],
-            "details": "cJSON 라이브러리를 활용한 설정 파일 스키마 정의, 오디오 품질 설정(샘플레이트, 비트레이트), 최적화 수준 조절, 배치 크기 설정, 로그 레벨 제어, 기본값 제공 및 설정 파일 자동 생성 기능",
-            "status": "pending",
+            "details": "cJSON 라이브러리를 활용한 설정 파일 스키마 정의, 오디오 품질 설정(샘플레이트, 비트레이트), 최적화 수준 조절, 배치 크기 설정, 로그 레벨 제어, 기본값 제공 및 설정 파일 자동 생성 기능\n<info added on 2025-08-19T13:49:18.764Z>\nWorldConfig, ScannerConfig, AudioProcessingConfig, ModelTrainingConfig, BatchProcessingConfig, OutputConfig, LoggingConfig 등 주요 구성 요소에 대한 중첩 구조를 포함하는 완전한 JSON 기반 설정 스키마를 cJSON 라이브러리를 활용하여 정의하고, JSON 직렬화/역직렬화, 유효성 검사, 파일 I/O, 사전 설정(기본, 고속, 고품질, 배치) 및 템플릿 생성을 지원하는 ConfigManager 클래스를 구현함. 오디오 품질(샘플레이트, 비트레이트), 최적화 수준, 배치 크기, 로그 레벨 제어 기능이 포함되었으며, 모든 기능(엣지 케이스, 성능 테스트, 오류 처리 포함)을 포괄하는 광범위한 유틸리티 함수 및 단위 테스트를 추가함.\n</info added on 2025-08-19T13:49:18.764Z>",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -778,7 +778,7 @@
     ],
     "metadata": {
       "created": "2025-08-16T15:50:51.347Z",
-      "updated": "2025-08-19T13:25:33.703Z",
+      "updated": "2025-08-19T18:27:58.766Z",
       "description": "Tasks for master context"
     }
   }

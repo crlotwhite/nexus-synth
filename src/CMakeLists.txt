@@ -41,6 +41,8 @@ set(NEXUSSYNTH_LIB_SOURCES
     
     # Voice bank conditioning modules
     conditioning/voicebank_scanner.cpp
+    conditioning/conditioning_config.cpp
+    conditioning/batch_processor.cpp
 )
 
 # Create library
@@ -57,8 +59,22 @@ target_include_directories(nexussynth_lib PUBLIC
     ${CMAKE_SOURCE_DIR}/include
 )
 
+# Add cJSON include directory when it's available
+if(cjson_ADDED)
+    target_include_directories(nexussynth_lib PRIVATE
+        ${cjson_SOURCE_DIR}
+    )
+endif()
+
 # Create main executable
 add_executable(nexussynth main.cpp)
+
+# Add cJSON include directory to main executable when it's available
+if(cjson_ADDED)
+    target_include_directories(nexussynth PRIVATE
+        ${cjson_SOURCE_DIR}
+    )
+endif()
 
 # Find zlib
 find_package(ZLIB REQUIRED)

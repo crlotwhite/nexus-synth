@@ -42,6 +42,13 @@ set(FEATURE_TEST_SOURCES
 function(create_test_executable TEST_NAME TEST_SOURCES)
     add_executable(${TEST_NAME} ${TEST_SOURCES})
     
+    # Add cJSON include directory for tests when it's available
+    if(cjson_ADDED)
+        target_include_directories(${TEST_NAME} PRIVATE
+            ${cjson_SOURCE_DIR}
+        )
+    endif()
+    
     target_link_libraries(${TEST_NAME}
         nexussynth_lib
         GTest::gtest_main
@@ -116,6 +123,9 @@ create_test_executable(nexussynth_utau_error_handler_test test_utau_error_handle
 # Create voice bank scanner test
 create_test_executable(nexussynth_voicebank_scanner_test test_voicebank_scanner.cpp)
 
+# Create conditioning configuration test
+create_test_executable(nexussynth_conditioning_config_test test_conditioning_config.cpp)
+
 # Create additional component tests (moved from src directory)
 create_test_executable(nexussynth_world_wrapper_test test_world_wrapper.cpp)
 create_test_executable(nexussynth_audio_utils_test test_audio_utils.cpp)
@@ -147,5 +157,6 @@ add_custom_target(run_all_tests
         nexussynth_utau_oto_parser_test
         nexussynth_vcv_pattern_recognizer_test
         nexussynth_midi_phoneme_integrator_test
+        nexussynth_conditioning_config_test
     COMMENT "Running all NexusSynth tests"
 )
