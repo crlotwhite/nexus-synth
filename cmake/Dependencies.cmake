@@ -1,8 +1,8 @@
 # Dependencies.cmake
 # Central dependency management for NexusSynth project
 
-# Include CPM
-include(cmake/CPM.cmake)
+# Include CPM - Use relative path from project root
+include(${CMAKE_SOURCE_DIR}/cmake/CPM.cmake)
 
 message(STATUS "Setting up NexusSynth dependencies...")
 
@@ -21,6 +21,7 @@ if(NOT Eigen3_FOUND)
       "BUILD_TESTING OFF"
       "EIGEN_BUILD_TESTING OFF"
       "EIGEN_BUILD_DOC OFF"
+      "EIGEN_BUILD_PKGCONFIG OFF"
   )
   
   if(Eigen3_ADDED)
@@ -86,6 +87,7 @@ CPMAddPackage(
     "ENABLE_CJSON_UTILS ON"
     "BUILD_SHARED_LIBS OFF"
     "ENABLE_CUSTOM_COMPILER_FLAGS OFF"
+    "CMAKE_DISABLE_FIND_PACKAGE_UNINSTALL ON"
 )
 
 if(cjson_ADDED)

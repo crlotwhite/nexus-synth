@@ -27,6 +27,7 @@ if(NOT (EXISTS ${CPM_DOWNLOAD_LOCATION}))
 endif()
 
 # Include CPM functionality
+message(STATUS "Including CPM from: ${CPM_DOWNLOAD_LOCATION}")
 include(${CPM_DOWNLOAD_LOCATION})
 
 # Set default cache directory for offline builds
