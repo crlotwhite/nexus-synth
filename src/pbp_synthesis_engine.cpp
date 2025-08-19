@@ -935,5 +935,187 @@ namespace synthesis {
         window_optimizer_->optimize_for_overlap_add(window, overlap_factor, hop_size);
     }
 
+    // Enhanced Real-time Streaming Implementation
+    bool PbpSynthesisEngine::initialize_enhanced_streaming(const StreamingConfig& streaming_config) {
+        if (enhanced_streaming_active_) {
+            std::cerr << "Enhanced streaming already initialized" << std::endl;
+            return false;
+        }
+
+        streaming_config_ = streaming_config;
+        
+        try {
+            streaming_manager_ = std::make_unique<StreamingBufferManager>(streaming_config_);
+            
+            if (!streaming_manager_->initialize(config_.sample_rate, config_.frame_period)) {
+                std::cerr << "Failed to initialize streaming buffer manager" << std::endl;
+                streaming_manager_.reset();
+                return false;
+            }
+
+            // Set synthesis callback to bridge streaming frames to PbP synthesis
+            streaming_manager_->set_synthesis_callback(
+                [this](const StreamingFrame& frame) -> std::vector<double> {
+                    return this->synthesize_streaming_frame(frame);
+                }
+            );
+
+            std::cout << "Enhanced streaming initialized successfully" << std::endl;
+            return true;
+            
+        } catch (const std::exception& e) {
+            std::cerr << "Failed to initialize enhanced streaming: " << e.what() << std::endl;
+            streaming_manager_.reset();
+            return false;
+        }
+    }
+
+    bool PbpSynthesisEngine::start_realtime_streaming() {
+        if (!streaming_manager_) {
+            std::cerr << "Streaming manager not initialized" << std::endl;
+            return false;
+        }
+
+        if (enhanced_streaming_active_) {
+            std::cerr << "Enhanced streaming already active" << std::endl;
+            return false;
+        }
+
+        if (!streaming_manager_->start_streaming()) {
+            std::cerr << "Failed to start streaming buffer manager" << std::endl;
+            return false;
+        }
+
+        enhanced_streaming_active_ = true;
+        std::cout << "Real-time streaming started" << std::endl;
+        return true;
+    }
+
+    void PbpSynthesisEngine::stop_realtime_streaming() {
+        if (!enhanced_streaming_active_) {
+            return;
+        }
+
+        if (streaming_manager_) {
+            streaming_manager_->stop_streaming();
+        }
+
+        enhanced_streaming_active_ = false;
+        std::cout << "Real-time streaming stopped" << std::endl;
+    }
+
+    bool PbpSynthesisEngine::is_realtime_streaming() const {
+        return enhanced_streaming_active_;
+    }
+
+    size_t PbpSynthesisEngine::queue_world_parameters(const AudioParameters& world_params) {
+        if (!enhanced_streaming_active_ || !streaming_manager_) {
+            return 0;
+        }
+
+        // Convert WORLD parameters to streaming frames
+        std::vector<StreamingFrame> frames = streaming_utils::world_to_streaming_frames(
+            world_params, config_.frame_period
+        );
+
+        return streaming_manager_->queue_input_frames(frames);
+    }
+
+    bool PbpSynthesisEngine::queue_streaming_frame(const StreamingFrame& frame) {
+        if (!enhanced_streaming_active_ || !streaming_manager_) {
+            return false;
+        }
+
+        return streaming_manager_->queue_input_frame(frame);
+    }
+
+    size_t PbpSynthesisEngine::read_realtime_audio(double* output_buffer, size_t samples_requested) {
+        if (!enhanced_streaming_active_ || !streaming_manager_ || !output_buffer) {
+            return 0;
+        }
+
+        return streaming_manager_->read_output_samples(output_buffer, samples_requested);
+    }
+
+    StreamingStats PbpSynthesisEngine::get_streaming_stats() const {
+        if (!streaming_manager_) {
+            return StreamingStats{};
+        }
+
+        return streaming_manager_->get_stats();
+    }
+
+    bool PbpSynthesisEngine::set_realtime_latency_target(double target_latency_ms) {
+        if (!streaming_manager_) {
+            return false;
+        }
+
+        return streaming_manager_->set_latency_target(target_latency_ms);
+    }
+
+    size_t PbpSynthesisEngine::get_available_input_frames() const {
+        if (!streaming_manager_) {
+            return 0;
+        }
+
+        return streaming_manager_->available_input_frames();
+    }
+
+    size_t PbpSynthesisEngine::get_available_output_samples() const {
+        if (!streaming_manager_) {
+            return 0;
+        }
+
+        return streaming_manager_->available_output_samples();
+    }
+
+    // Helper method for streaming frame synthesis
+    std::vector<double> PbpSynthesisEngine::synthesize_streaming_frame(const StreamingFrame& frame) {
+        try {
+            // Convert StreamingFrame to PulseParams
+            PulseParams pulse_params;
+            pulse_params.f0 = frame.f0;
+            pulse_params.spectrum = frame.spectrum;
+            pulse_params.aperiodicity = frame.aperiodicity;
+            pulse_params.amplitude_scale = frame.amplitude_scale;
+            pulse_params.formant_shift = frame.formant_shift;
+            pulse_params.pitch_shift = frame.pitch_shift;
+            pulse_params.pulse_position = 0.0; // Start of frame
+
+            // Synthesize pulse using existing PbP engine
+            std::vector<double> pulse_waveform = synthesize_pulse(pulse_params, frame.timestamp_ms);
+
+            // Apply real-time optimizations if needed
+            if (frame.enable_anti_aliasing && config_.enable_anti_aliasing) {
+                // Apply anti-aliasing for high-frequency content
+                apply_anti_aliasing_filter(pulse_waveform);
+            }
+
+            return pulse_waveform;
+            
+        } catch (const std::exception& e) {
+            std::cerr << "Error synthesizing streaming frame: " << e.what() << std::endl;
+            
+            // Return silence on error to maintain real-time stability
+            int samples_per_frame = static_cast<int>(config_.sample_rate * config_.frame_period / 1000.0);
+            return std::vector<double>(samples_per_frame, 0.0);
+        }
+    }
+
+    void PbpSynthesisEngine::apply_anti_aliasing_filter(std::vector<double>& waveform) {
+        if (waveform.size() < 4) {
+            return; // Too short for filtering
+        }
+
+        // Simple low-pass filter to reduce aliasing artifacts
+        double cutoff_ratio = 0.8; // Cutoff at 80% of Nyquist frequency
+        
+        for (size_t i = 1; i < waveform.size() - 1; ++i) {
+            // Apply simple smoothing kernel
+            double smoothed = 0.25 * waveform[i-1] + 0.5 * waveform[i] + 0.25 * waveform[i+1];
+            waveform[i] = cutoff_ratio * smoothed + (1.0 - cutoff_ratio) * waveform[i];
+        }
+    }
+
 } // namespace synthesis
 } // namespace nexussynth

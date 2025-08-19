@@ -10,6 +10,7 @@
 #include "mlpg_engine.h"
 #include "window_optimizer.h"
 #include "fft_transform_manager.h"
+#include "streaming_buffer_manager.h"
 
 namespace nexussynth {
 namespace synthesis {
@@ -206,6 +207,86 @@ namespace synthesis {
          */
         int finalize_streaming(double* output_buffer, int buffer_size);
 
+        // Enhanced real-time streaming with buffer management
+        /**
+         * @brief Initialize enhanced streaming with buffer manager
+         * 
+         * @param streaming_config Configuration for streaming buffer manager
+         * @return true if initialization successful
+         */
+        bool initialize_enhanced_streaming(const StreamingConfig& streaming_config = StreamingConfig{});
+
+        /**
+         * @brief Start real-time streaming synthesis
+         * 
+         * @return true if streaming started successfully
+         */
+        bool start_realtime_streaming();
+
+        /**
+         * @brief Stop real-time streaming synthesis
+         */
+        void stop_realtime_streaming();
+
+        /**
+         * @brief Check if enhanced streaming is active
+         */
+        bool is_realtime_streaming() const;
+
+        /**
+         * @brief Queue WORLD parameters for real-time synthesis
+         * 
+         * @param world_params WORLD AudioParameters to synthesize
+         * @return Number of frames successfully queued
+         */
+        size_t queue_world_parameters(const AudioParameters& world_params);
+
+        /**
+         * @brief Queue individual streaming frame
+         * 
+         * @param frame StreamingFrame to synthesize
+         * @return true if frame was queued successfully
+         */
+        bool queue_streaming_frame(const StreamingFrame& frame);
+
+        /**
+         * @brief Read synthesized audio from real-time stream
+         * 
+         * @param output_buffer Buffer for synthesized audio
+         * @param samples_requested Number of samples to read
+         * @return Number of samples actually read
+         */
+        size_t read_realtime_audio(double* output_buffer, size_t samples_requested);
+
+        /**
+         * @brief Get real-time streaming performance statistics
+         * 
+         * @return Current streaming statistics
+         */
+        StreamingStats get_streaming_stats() const;
+
+        /**
+         * @brief Set real-time latency target
+         * 
+         * @param target_latency_ms Target latency in milliseconds
+         * @return true if target is achievable
+         */
+        bool set_realtime_latency_target(double target_latency_ms);
+
+        /**
+         * @brief Get available input frames for streaming
+         * 
+         * @return Number of frames ready for synthesis
+         */
+        size_t get_available_input_frames() const;
+
+        /**
+         * @brief Get available output samples for reading
+         * 
+         * @return Number of synthesized samples available
+         */
+        size_t get_available_output_samples() const;
+
         // Testing interface - exposed methods for unit testing
         std::vector<double> generate_window_for_testing(int length, PbpConfig::WindowType type) {
             return generate_window(length, type);
@@ -272,6 +353,11 @@ namespace synthesis {
         std::vector<double> crossfade_buffer_;        // Buffer for smooth transitions
         int overlap_length_;                          // Length of overlap region
         double overlap_fade_factor_ = 0.5;           // Crossfade strength
+
+        // Enhanced streaming buffer management
+        std::unique_ptr<StreamingBufferManager> streaming_manager_;
+        StreamingConfig streaming_config_;
+        bool enhanced_streaming_active_ = false;
 
         // Core synthesis algorithms
         /**
@@ -492,6 +578,22 @@ namespace synthesis {
         // Memory management
         void allocate_synthesis_buffers();
         void deallocate_synthesis_buffers();
+        
+        // Enhanced streaming helper methods
+        /**
+         * @brief Synthesize audio from a single streaming frame
+         * 
+         * @param frame Input streaming frame with WORLD parameters
+         * @return Synthesized audio samples for this frame
+         */
+        std::vector<double> synthesize_streaming_frame(const StreamingFrame& frame);
+        
+        /**
+         * @brief Apply anti-aliasing filter to waveform
+         * 
+         * @param waveform Audio waveform to filter (modified in-place)
+         */
+        void apply_anti_aliasing_filter(std::vector<double>& waveform);
     };
 
     /**

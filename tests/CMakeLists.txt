@@ -12,6 +12,7 @@ set(SYNTHESIS_TEST_SOURCES
     test_overlap_add.cpp
     test_enhanced_synthesis.cpp
     test_fft_performance.cpp
+    test_streaming_buffer_manager.cpp
 )
 
 set(MLPG_TEST_SOURCES
@@ -94,6 +95,9 @@ create_test_executable(nexussynth_window_optimization_test test_window_optimizat
 # Create window performance benchmark test
 create_test_executable(nexussynth_window_performance_test test_window_performance_benchmark.cpp)
 
+# Create streaming buffer manager test
+create_test_executable(nexussynth_streaming_buffer_test test_streaming_buffer_manager.cpp)
+
 # Create a comprehensive test suite that runs all tests
 add_custom_target(run_all_tests
     COMMAND ${CMAKE_CTEST_COMMAND} --verbose --parallel 4
@@ -102,5 +106,6 @@ add_custom_target(run_all_tests
         nexussynth_main_test
         nexussynth_window_optimization_test
         nexussynth_window_performance_test
+        nexussynth_streaming_buffer_test
     COMMENT "Running all NexusSynth tests"
 )

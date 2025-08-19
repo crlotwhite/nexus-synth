@@ -16,6 +16,7 @@ set(NEXUSSYNTH_LIB_SOURCES
     pbp_synthesis_engine.cpp
     fft_transform_manager.cpp
     window_optimizer.cpp
+    streaming_buffer_manager.cpp
 )
 
 # Create library
