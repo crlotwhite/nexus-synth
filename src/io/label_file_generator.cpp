@@ -7,6 +7,7 @@
 #include <chrono>
 #include <thread>
 #include <filesystem>
+#include <set>
 
 namespace nexussynth {
 namespace context {

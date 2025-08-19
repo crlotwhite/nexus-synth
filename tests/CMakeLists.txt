@@ -113,6 +113,9 @@ create_test_executable(nexussynth_utau_logger_test test_utau_logger.cpp)
 # Create UTAU error handler test
 create_test_executable(nexussynth_utau_error_handler_test test_utau_error_handler.cpp)
 
+# Create voice bank scanner test
+create_test_executable(nexussynth_voicebank_scanner_test test_voicebank_scanner.cpp)
+
 # Create additional component tests (moved from src directory)
 create_test_executable(nexussynth_world_wrapper_test test_world_wrapper.cpp)
 create_test_executable(nexussynth_audio_utils_test test_audio_utils.cpp)
@@ -136,6 +139,7 @@ add_custom_target(run_all_tests
         nexussynth_utau_flag_converter_test
         nexussynth_utau_logger_test
         nexussynth_utau_error_handler_test
+        nexussynth_voicebank_scanner_test
         nexussynth_world_wrapper_test
         nexussynth_audio_utils_test
         nexussynth_compression_checksum_test

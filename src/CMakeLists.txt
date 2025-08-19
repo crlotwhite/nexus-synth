@@ -38,6 +38,9 @@ set(NEXUSSYNTH_LIB_SOURCES
     io/vcv_pattern_recognizer.cpp
     io/midi_phoneme_integrator.cpp
     io/label_file_generator.cpp
+    
+    # Voice bank conditioning modules
+    conditioning/voicebank_scanner.cpp
 )
 
 # Create library

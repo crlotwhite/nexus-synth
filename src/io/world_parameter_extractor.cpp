@@ -3,7 +3,7 @@
 #include "world/dio.h"
 #include "world/cheaptrick.h"
 #include "world/d4c.h"
-#include <cJSON.h>
+#include "cJSON.h"
 #include <iostream>
 #include <fstream>
 #include <cstring>

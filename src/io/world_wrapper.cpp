@@ -4,7 +4,7 @@
 #include "world/cheaptrick.h"
 #include "world/d4c.h"
 #include "world/synthesis.h"
-#include <cJSON.h>
+#include "cJSON.h"
 #include <iostream>
 #include <fstream>
 #include <cstring>
