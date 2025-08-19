@@ -578,7 +578,7 @@
         "dependencies": [
           7
         ],
-        "status": "pending",
+        "status": "in-progress",
         "subtasks": [
           {
             "id": 1,
@@ -586,7 +586,7 @@
             "description": "UTAU/moresampler 호환 명령행 인자 파싱기 구현: 입력/출력 WAV 경로, 피치, 속도, g/t 플래그 등 표준 인자를 정확히 해석하고 내부 파라미터로 변환",
             "dependencies": [],
             "details": "getopt_long 기반 파서 설계, Windows 경로(백슬래시/공백 포함) 처리, UTF-8/CP949 인코딩 대응, 필수/선택 인자 검증, usage 메시지 출력",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -778,7 +778,7 @@
     ],
     "metadata": {
       "created": "2025-08-16T15:50:51.347Z",
-      "updated": "2025-08-19T03:42:15.298Z",
+      "updated": "2025-08-19T03:56:19.363Z",
       "description": "Tasks for master context"
     }
   }

@@ -18,6 +18,7 @@ set(NEXUSSYNTH_LIB_SOURCES
     window_optimizer.cpp
     streaming_buffer_manager.cpp
     performance_profiler.cpp
+    utau_argument_parser.cpp
 )
 
 # Create library

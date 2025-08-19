@@ -101,6 +101,9 @@ create_test_executable(nexussynth_streaming_buffer_test test_streaming_buffer_ma
 # Create performance profiler test
 create_test_executable(nexussynth_performance_profiler_test test_performance_profiler.cpp)
 
+# Create UTAU argument parser test
+create_test_executable(nexussynth_utau_argument_parser_test test_utau_argument_parser.cpp)
+
 # Create a comprehensive test suite that runs all tests
 add_custom_target(run_all_tests
     COMMAND ${CMAKE_CTEST_COMMAND} --verbose --parallel 4
@@ -111,5 +114,6 @@ add_custom_target(run_all_tests
         nexussynth_window_performance_test
         nexussynth_streaming_buffer_test
         nexussynth_performance_profiler_test
+        nexussynth_utau_argument_parser_test
     COMMENT "Running all NexusSynth tests"
 )
