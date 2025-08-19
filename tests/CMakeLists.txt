@@ -104,6 +104,15 @@ create_test_executable(nexussynth_performance_profiler_test test_performance_pro
 # Create UTAU argument parser test
 create_test_executable(nexussynth_utau_argument_parser_test test_utau_argument_parser.cpp)
 
+# Create additional component tests (moved from src directory)
+create_test_executable(nexussynth_world_wrapper_test test_world_wrapper.cpp)
+create_test_executable(nexussynth_audio_utils_test test_audio_utils.cpp)
+create_test_executable(nexussynth_compression_checksum_test test_compression_checksum.cpp)
+create_test_executable(nexussynth_version_management_test test_version_management.cpp)
+create_test_executable(nexussynth_utau_oto_parser_test test_utau_oto_parser.cpp)
+create_test_executable(nexussynth_vcv_pattern_recognizer_test test_vcv_pattern_recognizer.cpp)
+create_test_executable(nexussynth_midi_phoneme_integrator_test test_midi_phoneme_integrator.cpp)
+
 # Create a comprehensive test suite that runs all tests
 add_custom_target(run_all_tests
     COMMAND ${CMAKE_CTEST_COMMAND} --verbose --parallel 4
@@ -115,5 +124,12 @@ add_custom_target(run_all_tests
         nexussynth_streaming_buffer_test
         nexussynth_performance_profiler_test
         nexussynth_utau_argument_parser_test
+        nexussynth_world_wrapper_test
+        nexussynth_audio_utils_test
+        nexussynth_compression_checksum_test
+        nexussynth_version_management_test
+        nexussynth_utau_oto_parser_test
+        nexussynth_vcv_pattern_recognizer_test
+        nexussynth_midi_phoneme_integrator_test
     COMMENT "Running all NexusSynth tests"
 )

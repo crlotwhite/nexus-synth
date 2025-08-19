@@ -1,24 +1,40 @@
-# Library source files
+# Library source files organized by functionality
 set(NEXUSSYNTH_LIB_SOURCES
+    # Core engine
     nexussynth_engine.cpp
-    world_wrapper.cpp
-    world_parameter_extractor.cpp
-    audio_utils.cpp
-    context_features.cpp
-    voice_metadata.cpp
-    gaussian_mixture.cpp
-    nvm_format.cpp
-    utau_oto_parser.cpp
-    vcv_pattern_recognizer.cpp
-    midi_phoneme_integrator.cpp
-    hmm_trainer.cpp
-    mlpg_engine.cpp
-    pbp_synthesis_engine.cpp
-    fft_transform_manager.cpp
-    window_optimizer.cpp
-    streaming_buffer_manager.cpp
-    performance_profiler.cpp
-    utau_argument_parser.cpp
+    
+    # Interface modules (UTAU compatibility)
+    interface/utau_argument_parser.cpp
+    interface/utau_oto_parser.cpp
+    
+    # Synthesis engine modules
+    synthesis/pbp_synthesis_engine.cpp
+    synthesis/streaming_buffer_manager.cpp
+    synthesis/window_optimizer.cpp
+    
+    # Machine learning modules
+    ml/hmm_trainer.cpp
+    ml/mlpg_engine.cpp
+    ml/gaussian_mixture.cpp
+    ml/context_features.cpp
+    ml/context_feature_extractor.cpp
+    ml/context_hmm_bridge.cpp
+    ml/data_augmentation.cpp
+    ml/quality_metrics.cpp
+    
+    # Utility modules
+    utils/audio_utils.cpp
+    utils/performance_profiler.cpp
+    utils/fft_transform_manager.cpp
+    
+    # I/O and format modules
+    io/nvm_format.cpp
+    io/voice_metadata.cpp
+    io/world_wrapper.cpp
+    io/world_parameter_extractor.cpp
+    io/vcv_pattern_recognizer.cpp
+    io/midi_phoneme_integrator.cpp
+    io/label_file_generator.cpp
 )
 
 # Create library
@@ -64,61 +80,6 @@ set_target_properties(nexussynth PROPERTIES
     CXX_STANDARD_REQUIRED ON
 )
 
-# Create WORLD wrapper test executable
-add_executable(test_world_wrapper test_world_wrapper.cpp)
-target_link_libraries(test_world_wrapper nexussynth_lib)
-set_target_properties(test_world_wrapper PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED ON
-)
-
-# Create audio utilities test executable
-add_executable(test_audio_utils test_audio_utils.cpp)
-target_link_libraries(test_audio_utils nexussynth_lib)
-set_target_properties(test_audio_utils PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED ON
-)
-
-# Create compression and checksum test executable
-add_executable(test_compression_checksum test_compression_checksum.cpp)
-target_link_libraries(test_compression_checksum nexussynth_lib)
-set_target_properties(test_compression_checksum PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED ON
-)
-
-# Create version management test executable
-add_executable(test_version_management test_version_management.cpp)
-target_link_libraries(test_version_management nexussynth_lib)
-set_target_properties(test_version_management PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED ON
-)
-
-# Create UTAU oto.ini parser test executable
-add_executable(test_utau_oto_parser test_utau_oto_parser.cpp)
-target_link_libraries(test_utau_oto_parser nexussynth_lib)
-set_target_properties(test_utau_oto_parser PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED ON
-)
-
-# Create VCV pattern recognizer test executable
-add_executable(test_vcv_pattern_recognizer test_vcv_pattern_recognizer.cpp)
-target_link_libraries(test_vcv_pattern_recognizer nexussynth_lib)
-set_target_properties(test_vcv_pattern_recognizer PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED ON
-)
-
-# Create MIDI phoneme integrator test executable
-add_executable(test_midi_phoneme_integrator test_midi_phoneme_integrator.cpp)
-target_link_libraries(test_midi_phoneme_integrator nexussynth_lib)
-set_target_properties(test_midi_phoneme_integrator PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED ON
-)
-
-# Note: Test executables are now managed in tests/CMakeLists.txt
-# All test_*.cpp files have been moved to the tests/ directory for better organization
+# Note: All test executables are now managed in tests/CMakeLists.txt
+# Test files have been moved to the tests/ directory for better organization
+# This separation keeps the main source directory clean and focused on implementation
