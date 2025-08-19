@@ -7,6 +7,7 @@
 #include <regex>
 #include <filesystem>
 #include <climits>
+#include "utau_logger.h"
 
 namespace nexussynth {
 namespace utau {
@@ -132,7 +133,7 @@ public:
     // Configuration
     void set_strict_validation(bool strict) { strict_validation_ = strict; }
     void set_debug_mode(bool debug) { debug_mode_ = debug; }
-    void set_log_file(const std::string& log_path) { log_file_path_ = log_path; }
+    void set_log_file(const std::string& log_path);
 
 private:
     bool strict_validation_ = true;

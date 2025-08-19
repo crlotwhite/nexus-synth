@@ -1,4 +1,5 @@
 #include "nexussynth/utau_argument_parser.h"
+#include "nexussynth/utau_logger.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -9,8 +10,6 @@
 
 #ifdef _WIN32
 #include <windows.h>
-#include <codecvt>
-#include <locale>
 #else
 #include <iconv.h>
 #endif
@@ -104,6 +103,11 @@ UtauArgumentParser::UtauArgumentParser() {
 #ifdef _WIN32
     set_console_utf8_mode();
 #endif
+    
+    // Initialize logging system with UTAU-appropriate defaults
+    if (!LoggingUtils::initialize_utau_logging()) {
+        std::cerr << "Warning: Failed to initialize logging system" << std::endl;
+    }
 }
 
 UtauArgumentParser::~UtauArgumentParser() = default;
@@ -385,8 +389,13 @@ std::wstring UtauArgumentParser::convert_to_wide(const std::string& input) {
     MultiByteToWideChar(CP_UTF8, 0, input.c_str(), -1, &result[0], size_needed);
     return result;
 #else
-    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
-    return converter.from_bytes(input);
+    // Simple ASCII-only fallback for non-Windows platforms
+    std::wstring result;
+    result.reserve(input.size());
+    for (char c : input) {
+        result.push_back(static_cast<wchar_t>(static_cast<unsigned char>(c)));
+    }
+    return result;
 #endif
 }
 
@@ -401,8 +410,17 @@ std::string UtauArgumentParser::convert_from_wide(const std::wstring& input) {
     WideCharToMultiByte(CP_UTF8, 0, input.c_str(), -1, &result[0], size_needed, nullptr, nullptr);
     return result;
 #else
-    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
-    return converter.to_bytes(input);
+    // Simple ASCII-only fallback for non-Windows platforms
+    std::string result;
+    result.reserve(input.size());
+    for (wchar_t c : input) {
+        if (c <= 127) { // ASCII range
+            result.push_back(static_cast<char>(c));
+        } else {
+            result.push_back('?'); // Placeholder for non-ASCII
+        }
+    }
+    return result;
 #endif
 }
 
@@ -481,29 +499,17 @@ bool UtauArgumentParser::is_valid_flag_format(const std::string& flags) {
 }
 
 void UtauArgumentParser::report_error(ResamplerError error, const std::string& details) {
-    std::cerr << "Error " << static_cast<int>(error) << ": " 
-              << get_error_description(error) << std::endl;
+    std::string error_msg = "Error " + std::to_string(static_cast<int>(error)) + ": " + get_error_description(error);
     
     if (!details.empty()) {
-        std::cerr << "Details: " << details << std::endl;
+        error_msg += " - " + details;
     }
     
-    // Log to file if available
-    std::ofstream log("resampler_error.log", std::ios::app);
-    if (log.is_open()) {
-        auto now = std::chrono::system_clock::now();
-        auto time_t = std::chrono::system_clock::to_time_t(now);
-        
-        log << "[" << std::put_time(std::localtime(&time_t), "%Y-%m-%d %H:%M:%S") 
-            << "] Error " << static_cast<int>(error) << ": " 
-            << get_error_description(error);
-        
-        if (!details.empty()) {
-            log << " - " << details;
-        }
-        
-        log << std::endl;
-    }
+    // Log using the UTAU logger system
+    LOG_FATAL(error_msg);
+    
+    // Ensure all logs are flushed before exit
+    UtauLogger::instance().flush();
     
     std::exit(static_cast<int>(error));
 }
@@ -585,28 +591,24 @@ std::string UtauArgumentParser::shift_jis_to_utf8(const std::string& shift_jis_s
 
 void UtauArgumentParser::log_debug(const std::string& message) {
     if (!debug_mode_) return;
-    
-    auto now = std::chrono::system_clock::now();
-    auto time_t = std::chrono::system_clock::to_time_t(now);
-    
-    std::cout << "[DEBUG " << std::put_time(std::localtime(&time_t), "%H:%M:%S") 
-              << "] " << message << std::endl;
+    LOG_DEBUG(message);
 }
 
 void UtauArgumentParser::log_error(const std::string& message) {
-    auto now = std::chrono::system_clock::now();
-    auto time_t = std::chrono::system_clock::to_time_t(now);
+    LOG_ERROR(message);
+}
+
+void UtauArgumentParser::set_log_file(const std::string& log_path) {
+    log_file_path_ = log_path;
     
-    std::cerr << "[ERROR " << std::put_time(std::localtime(&time_t), "%H:%M:%S") 
-              << "] " << message << std::endl;
-    
-    // Also log to file if path is set
-    if (!log_file_path_.empty()) {
-        std::ofstream log(log_file_path_, std::ios::app);
-        if (log.is_open()) {
-            log << "[ERROR " << std::put_time(std::localtime(&time_t), "%H:%M:%S") 
-                << "] " << message << std::endl;
-        }
+    // Configure the global UTAU logger to use this file
+    if (!log_path.empty()) {
+        UtauLogger::instance().set_log_file(log_path);
+        UtauLogger::instance().set_output(LogOutput::BOTH); // Console + file
+        LOG_INFO("Logging configured to file: " + log_path);
+    } else {
+        UtauLogger::instance().set_output(LogOutput::CONSOLE);
+        LOG_INFO("Logging configured to console only");
     }
 }
 

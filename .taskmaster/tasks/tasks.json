@@ -619,8 +619,8 @@
             "dependencies": [
               "8.1"
             ],
-            "details": "타임스탬프 포함 로그 포맷, 로그 레벨(DEBUG/INFO/WARN/ERROR), 파일/콘솔 출력 동시 지원, Windows 콘솔 색상 코드 처리, 로그 회전 설정",
-            "status": "pending",
+            "details": "타임스탬프 포함 로그 포맷, 로그 레벨(DEBUG/INFO/WARN/ERROR), 파일/콘솔 출력 동시 지원, Windows 콘솔 색상 코드 처리, 로그 회전 설정\n<info added on 2025-08-19T09:03:45.345Z>\n, UtauLogger 클래스 기반의 FATAL 레벨 포함 다중 로그 레벨 지원, 파일/콘솔/양방향 출력 설정 및 Windows 콘솔 UTF-8/ANSI 색상 코드 처리 강화, 설정 가능한 크기 기반 로그 파일 회전 및 백업 관리, 성능 측정 타이머, 스레드 안전성(뮤텍스), UTAU 인자 파서 통합, UTAU 특정 로깅 메서드, 스코프 기반 레벨 관리, 조건부 로깅, 전역 싱글톤 패턴 및 편의 매크로 제공. 22개 단위 테스트 완료. 로깅 시스템 자체는 컴파일 및 기능 정상.\n</info added on 2025-08-19T09:03:45.345Z>",
+            "status": "done",
             "testStrategy": ""
           }
         ]
@@ -778,7 +778,7 @@
     ],
     "metadata": {
       "created": "2025-08-16T15:50:51.347Z",
-      "updated": "2025-08-19T08:40:03.842Z",
+      "updated": "2025-08-19T09:03:52.920Z",
       "description": "Tasks for master context"
     }
   }

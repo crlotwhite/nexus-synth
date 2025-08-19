@@ -125,7 +125,7 @@ double UtauFlagConverter::convert_g_flag(int g_value, VoiceType voice_type, doub
     return voice_scaling * freq_scaling;
 }
 
-double UtauFlagConverter::convert_t_flag(int t_value, VoiceType voice_type, double base_f0) {
+double UtauFlagConverter::convert_t_flag(int t_value, VoiceType voice_type, double /* base_f0 */) {
     if (t_value == 0) return 0.0;
     
     // Base conversion: t±100 maps to ±1.0 tension factor
@@ -461,37 +461,37 @@ std::vector<UtauFlagConverter::ConversionAnalysis> UtauFlagConverter::run_conver
     std::vector<ConversionAnalysis> results;
     
     // Define test cases covering various flag combinations
-    std::vector<FlagValues> test_cases = {
-        // Single flag tests
-        {{50, 0, 0, 0}},    // g+50
-        {{-50, 0, 0, 0}},   // g-50
-        {{0, 50, 0, 0}},    // t+50
-        {{0, -50, 0, 0}},   // t-50
-        {{0, 0, 50, 0}},    // bre50
-        {{0, 0, 0, 50}},    // bri+50
-        {{0, 0, 0, -50}},   // bri-50
-        
-        // Combination tests
-        {{30, 30, 0, 0}},   // g+30 t+30
-        {{-30, -30, 0, 0}}, // g-30 t-30
-        {{20, 0, 40, 0}},   // g+20 bre40
-        {{0, 30, 0, 30}},   // t+30 bri+30
-        {{0, 0, 50, -30}},  // bre50 bri-30
-        
-        // Extreme value tests
-        {{100, 0, 0, 0}},   // g+100 (maximum)
-        {{-100, 0, 0, 0}},  // g-100 (minimum)
-        {{0, 100, 0, 0}},   // t+100 (maximum)
-        {{0, 0, 100, 0}},   // bre100 (maximum)
-        {{0, 0, 0, 100}},   // bri+100 (maximum)
-        {{0, 0, 0, -100}},  // bri-100 (minimum)
-        
-        // Complex combinations
-        {{50, -30, 20, 10}}, // Mixed positive/negative
-        {{-20, 60, 80, -40}}, // High breathiness with other flags
-        {{30, 30, 30, 30}},   // All positive moderate
-        {{-30, -30, 0, -30}}, // All negative (except bre)
-    };
+    std::vector<FlagValues> test_cases;
+    
+    // Single flag tests
+    test_cases.push_back({50, 0, 0, 0});    // g+50
+    test_cases.push_back({-50, 0, 0, 0});   // g-50
+    test_cases.push_back({0, 50, 0, 0});    // t+50
+    test_cases.push_back({0, -50, 0, 0});   // t-50
+    test_cases.push_back({0, 0, 50, 0});    // bre50
+    test_cases.push_back({0, 0, 0, 50});    // bri+50
+    test_cases.push_back({0, 0, 0, -50});   // bri-50
+    
+    // Combination tests
+    test_cases.push_back({30, 30, 0, 0});   // g+30 t+30
+    test_cases.push_back({-30, -30, 0, 0}); // g-30 t-30
+    test_cases.push_back({20, 0, 40, 0});   // g+20 bre40
+    test_cases.push_back({0, 30, 0, 30});   // t+30 bri+30
+    test_cases.push_back({0, 0, 50, -30});  // bre50 bri-30
+    
+    // Extreme value tests
+    test_cases.push_back({100, 0, 0, 0});   // g+100 (maximum)
+    test_cases.push_back({-100, 0, 0, 0});  // g-100 (minimum)
+    test_cases.push_back({0, 100, 0, 0});   // t+100 (maximum)
+    test_cases.push_back({0, 0, 100, 0});   // bre100 (maximum)
+    test_cases.push_back({0, 0, 0, 100});   // bri+100 (maximum)
+    test_cases.push_back({0, 0, 0, -100});  // bri-100 (minimum)
+    
+    // Complex combinations
+    test_cases.push_back({50, -30, 20, 10}); // Mixed positive/negative
+    test_cases.push_back({-20, 60, 80, -40}); // High breathiness with other flags
+    test_cases.push_back({30, 30, 30, 30});   // All positive moderate
+    test_cases.push_back({-30, -30, 0, -30}); // All negative (except bre)
     
     // Run tests for each case
     for (const auto& test_flags : test_cases) {
@@ -584,7 +584,7 @@ FlagConversionUtils::ConversionBenchmark benchmark_conversion_performance(size_t
     for (const auto& flags : test_flags) {
         auto conversion_start = std::chrono::high_resolution_clock::now();
         
-        auto result = converter.convert(flags);
+        converter.convert(flags); // Conversion test
         
         auto conversion_end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(conversion_end - conversion_start);
@@ -592,7 +592,8 @@ FlagConversionUtils::ConversionBenchmark benchmark_conversion_performance(size_t
     }
     
     auto end_time = std::chrono::high_resolution_clock::now();
-    auto total_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+    // Calculate total duration for potential future use
+    (void)std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
     
     // Calculate statistics
     benchmark.average_conversion_time_us = std::accumulate(conversion_times.begin(), conversion_times.end(), 0.0) / conversion_times.size();
