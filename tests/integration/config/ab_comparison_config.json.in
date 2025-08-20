@@ -1,0 +1,59 @@
+{
+  "system_a": {
+    "name": "NexusSynth",
+    "executable_path": "@CMAKE_BINARY_DIR@/src/nexussynth",
+    "command_args": [
+      "synthesize",
+      "--input", "{INPUT_FILE}",
+      "--output", "{OUTPUT_FILE}",
+      "--preset", "quality"
+    ],
+    "output_format": "wav"
+  },
+  "system_b": {
+    "name": "moresampler",
+    "executable_path": "moresampler.exe",
+    "command_args": [
+      "{INPUT_FILE}",
+      "{OUTPUT_FILE}",
+      "C4",
+      "100",
+      "0",
+      "0",
+      "0"
+    ],
+    "output_format": "wav"
+  },
+  "test_parameters": {
+    "test_voice_banks": [
+      "@CMAKE_SOURCE_DIR@/test_data/voice_banks/cv_minimal",
+      "@CMAKE_SOURCE_DIR@/test_data/voice_banks/cv_extended",
+      "@CMAKE_SOURCE_DIR@/test_data/voice_banks/vcv_basic"
+    ],
+    "test_scenarios": [
+      "basic_synthesis",
+      "pitch_shift_up_200",
+      "pitch_shift_down_200",
+      "tempo_fast_150",
+      "tempo_slow_75",
+      "formant_shift_up",
+      "formant_shift_down"
+    ],
+    "repetitions_per_test": 5,
+    "significance_threshold": 0.05
+  },
+  "quality_thresholds": {
+    "min_acceptable_snr": 20.0,
+    "max_acceptable_mcd": 10.0,
+    "max_acceptable_f0_rmse": 50.0,
+    "min_acceptable_similarity": 0.7,
+    "max_acceptable_spectral_distortion": 0.2
+  },
+  "output_settings": {
+    "generate_html_report": true,
+    "generate_csv_report": true,
+    "generate_plots": true,
+    "include_statistical_analysis": true,
+    "detailed_logging": true
+  }
+}

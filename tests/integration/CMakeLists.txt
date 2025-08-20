@@ -100,9 +100,42 @@ endfunction()
 create_integration_test(integration_voicebank_conversion "conversion/test_voicebank_conversion.cpp")
 create_integration_test(integration_nvm_generation "conversion/test_nvm_generation.cpp")
 create_integration_test(integration_e2e_synthesis "synthesis/test_e2e_synthesis.cpp")
-create_integration_test(integration_utau_compatibility "synthesis/test_utau_compatibility.cpp")
+# create_integration_test(integration_utau_compatibility "synthesis/test_utau_compatibility.cpp")  # TODO: Create this file
 create_integration_test(integration_rendering_performance "benchmarks/test_rendering_performance.cpp")
-create_integration_test(integration_quality_metrics "quality/test_quality_metrics.cpp")
+# create_integration_test(integration_quality_metrics "quality/test_quality_metrics.cpp")  # TODO: Create this file
+
+# A/B comparison test executable
+add_executable(integration_ab_comparison ab_comparison/test_ab_comparator.cpp)
+target_link_libraries(integration_ab_comparison
+    ab_comparator_lib
+    integration_test_utils
+    nexussynth_lib
+    GTest::gtest_main
+    GTest::gtest
+    world
+    Eigen3::Eigen
+    asmjit::asmjit
+    cjson
+)
+
+# A/B comparator library
+add_library(ab_comparator_lib STATIC
+    ab_comparison/ab_comparator.cpp
+)
+target_link_libraries(ab_comparator_lib
+    integration_test_utils
+    nexussynth_lib
+)
+
+# A/B comparison command-line tool
+add_executable(ab_comparison_tool 
+    ab_comparison/ab_comparison_tool.cpp
+)
+target_link_libraries(ab_comparison_tool
+    ab_comparator_lib
+    integration_test_utils
+    nexussynth_lib
+)
 
 # Custom targets for running test categories
 add_custom_target(test_conversion
@@ -113,7 +146,7 @@ add_custom_target(test_conversion
 
 add_custom_target(test_synthesis  
     COMMAND ${CMAKE_CTEST_COMMAND} -L "synthesis" --verbose
-    DEPENDS integration_e2e_synthesis integration_utau_compatibility
+    DEPENDS integration_e2e_synthesis
     COMMENT "Running end-to-end synthesis tests"
 )
 
@@ -125,8 +158,15 @@ add_custom_target(test_benchmarks
 
 add_custom_target(test_quality
     COMMAND ${CMAKE_CTEST_COMMAND} -L "quality" --verbose
-    DEPENDS integration_quality_metrics
+    DEPENDS integration_ab_comparison
     COMMENT "Running quality comparison tests"
+)
+
+# A/B comparison custom target
+add_custom_target(test_ab_comparison
+    COMMAND ${CMAKE_CTEST_COMMAND} -R "integration_ab_comparison" --verbose
+    DEPENDS integration_ab_comparison
+    COMMENT "Running A/B comparison tests"
 )
 
 # Main integration test target
@@ -136,9 +176,8 @@ add_custom_target(integration_tests
         integration_voicebank_conversion
         integration_nvm_generation
         integration_e2e_synthesis
-        integration_utau_compatibility
         integration_rendering_performance
-        integration_quality_metrics
+        integration_ab_comparison
     COMMENT "Running all integration tests"
 )
 
@@ -147,11 +186,23 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config/test_scenarios.json.in
                ${CMAKE_CURRENT_BINARY_DIR}/config/test_scenarios.json @ONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config/quality_thresholds.json.in
                ${CMAKE_CURRENT_BINARY_DIR}/config/quality_thresholds.json @ONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config/ab_comparison_config.json.in
+               ${CMAKE_CURRENT_BINARY_DIR}/config/ab_comparison_config.json @ONLY)
 
 # Set test labels for categorization
 set_tests_properties(integration_voicebank_conversion PROPERTIES LABELS "integration;conversion")
 set_tests_properties(integration_nvm_generation PROPERTIES LABELS "integration;conversion")
 set_tests_properties(integration_e2e_synthesis PROPERTIES LABELS "integration;synthesis")
-set_tests_properties(integration_utau_compatibility PROPERTIES LABELS "integration;synthesis")
+# set_tests_properties(integration_utau_compatibility PROPERTIES LABELS "integration;synthesis")
 set_tests_properties(integration_rendering_performance PROPERTIES LABELS "integration;benchmarks")
-set_tests_properties(integration_quality_metrics PROPERTIES LABELS "integration;quality")
+# set_tests_properties(integration_quality_metrics PROPERTIES LABELS "integration;quality")
+
+# Register A/B comparison test with CTest
+add_test(NAME integration_ab_comparison 
+         COMMAND integration_ab_comparison
+         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+         
+set_tests_properties(integration_ab_comparison PROPERTIES
+    TIMEOUT ${INTEGRATION_TEST_TIMEOUT}
+    LABELS "integration;ab_comparison;quality"
+)

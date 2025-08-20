@@ -1,5 +1,4 @@
 #include "audio_comparator.h"
-#include <gtest/gtest.h>
 #include <fstream>
 #include <cmath>
 #include <algorithm>

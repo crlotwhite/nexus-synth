@@ -1,5 +1,4 @@
 #include "test_data_manager.h"
-#include <gtest/gtest.h>
 #include <fstream>
 #include <sstream>
 #include <chrono>
