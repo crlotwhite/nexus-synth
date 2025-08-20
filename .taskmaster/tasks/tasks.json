@@ -701,7 +701,7 @@
         "dependencies": [
           9
         ],
-        "status": "in-progress",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -770,7 +770,7 @@
               "10.5"
             ],
             "details": "벤치마크 결과 리포트 템플릿 작성, 테스트 실행 가이드 문서, 성능 최적화 권장사항, FAQ 및 트러블슈팅 가이드, 커뮤니티 베타 테스트 참여 안내",
-            "status": "pending",
+            "status": "done",
             "testStrategy": ""
           }
         ]
@@ -778,7 +778,7 @@
     ],
     "metadata": {
       "created": "2025-08-16T15:50:51.347Z",
-      "updated": "2025-08-20T13:34:59.955Z",
+      "updated": "2025-08-20T13:57:22.984Z",
       "description": "Tasks for master context"
     }
   }
