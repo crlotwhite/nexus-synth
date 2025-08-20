@@ -43,6 +43,12 @@ set(NEXUSSYNTH_LIB_SOURCES
     conditioning/voicebank_scanner.cpp
     conditioning/conditioning_config.cpp
     conditioning/batch_processor.cpp
+    conditioning/validation_system.cpp
+    
+    # CLI interface modules
+    cli_interface.cpp
+    cli_progress_callbacks.cpp
+    cli_utils.cpp
 )
 
 # Create library

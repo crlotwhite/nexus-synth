@@ -190,6 +190,7 @@ namespace validation {
         // File size limits
         size_t max_model_size_bytes = 100 * 1024 * 1024; // 100MB per model
         size_t max_total_file_size_bytes = 1024 * 1024 * 1024; // 1GB total
+        size_t max_models_per_file = 10000; // Maximum models per NVM file
     };
 
     /**

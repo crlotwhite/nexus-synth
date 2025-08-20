@@ -635,7 +635,7 @@
         "dependencies": [
           8
         ],
-        "status": "in-progress",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -664,8 +664,8 @@
             "dependencies": [
               "9.2"
             ],
-            "details": ".nvm 파일 구조 검증, 파라미터 값 범위 체크, 누락된 음소 감지, 오류 로그 JSON 포맷 저장, 시각적 오류 요약 리포트 생성, 변환 실패 원인 분석 및 제안사항 제공",
-            "status": "in-progress",
+            "details": ".nvm 파일 구조 검증, 파라미터 값 범위 체크, 누락된 음소 감지, 오류 로그 JSON 포맷 저장, 시각적 오류 요약 리포트 생성, 변환 실패 원인 분석 및 제안사항 제공\n<info added on 2025-08-19T18:35:25.989Z>\n, ValidationEngine 클래스 구현 (오류 분류 및 심각도 포함), UTAU 보이스뱅크 유효성 검사 프레임워크, 콘솔 진행률 보고 및 시각적 피드백, 품질 점수 시스템 (완성도, 일관성, 무결성 점수), 모델 일관성 검증, UTAU 구조 검증, OTO 엔트리 검증, 오디오 파일 검증, HTML/Markdown 리포트 생성 (부분 구현), 일괄 유효성 검사 작업 (프레임워크 존재, 완료 필요)\n</info added on 2025-08-19T18:35:25.989Z>",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -685,8 +685,8 @@
               "9.3",
               "9.4"
             ],
-            "details": "인자 파싱 라이브러리 사용, 입력/출력 경로 지정 옵션, 자동 폴더 구조 유지, 로그 파일 자동 저장, Windows .bat 및 Linux .sh 배치 스크립트 템플릿 제공, 드래그앤드롭 지원",
-            "status": "pending",
+            "details": "인자 파싱 라이브러리 사용, 입력/출력 경로 지정 옵션, 자동 폴더 구조 유지, 로그 파일 자동 저장, Windows .bat 및 Linux .sh 배치 스크립트 템플릿 제공, 드래그앤드롭 지원\n<info added on 2025-08-19T19:19:09.855Z>\nHMM 모델 유효성 검사 시스템의 API 불일치(예: `HmmState.output_distribution` 필드명 변경, `PhonemeHmm.context.current_phoneme` 필드명 변경, `PhonemeHmm`에서 `transition_matrix` 필드 제거)로 인한 빌드 오류를 해결하고, CLI의 원활한 작동을 위해 유효성 검사 로직을 단순화하여 적용.\n</info added on 2025-08-19T19:19:09.855Z>",
+            "status": "done",
             "testStrategy": ""
           }
         ]
@@ -701,7 +701,7 @@
         "dependencies": [
           9
         ],
-        "status": "pending",
+        "status": "in-progress",
         "subtasks": [
           {
             "id": 1,
@@ -778,7 +778,7 @@
     ],
     "metadata": {
       "created": "2025-08-16T15:50:51.347Z",
-      "updated": "2025-08-19T18:27:58.766Z",
+      "updated": "2025-08-20T09:07:44.014Z",
       "description": "Tasks for master context"
     }
   }

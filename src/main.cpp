@@ -1,25 +1,18 @@
 #include <iostream>
-#include "nexussynth/nexussynth.h"
+#include <cstdlib>
+#include "nexussynth/cli_interface.h"
 
 int main(int argc, char* argv[]) {
-    std::cout << "NexusSynth Vocal Synthesis Resampler v1.0.0" << std::endl;
-    
-    // Test WORLD vocoder integration
-    std::cout << "\n=== Testing WORLD Vocoder Integration ===" << std::endl;
-    
-    nexussynth::NexusSynthEngine engine;
-    bool result = engine.initialize("/path/to/voice/bank");
-    
-    if (result) {
-        std::cout << "\n✓ NexusSynth initialization successful!" << std::endl;
-        std::cout << "\n=== Next Steps ===" << std::endl;
-        std::cout << "• Implement UTAU oto.ini parsing" << std::endl;
-        std::cout << "• Add HMM model training system" << std::endl;
-        std::cout << "• Implement real-time synthesis pipeline" << std::endl;
-    } else {
-        std::cout << "✗ NexusSynth initialization failed!" << std::endl;
+    try {
+        nexussynth::cli::CliInterface cli;
+        auto result = cli.run(argc, argv);
+        return result.exit_code;
+        
+    } catch (const std::exception& e) {
+        std::cerr << "Fatal error: " << e.what() << std::endl;
+        return 1;
+    } catch (...) {
+        std::cerr << "Unknown fatal error occurred" << std::endl;
         return 1;
     }
-    
-    return 0;
 }

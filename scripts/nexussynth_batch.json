@@ -1,0 +1,91 @@
+{
+  "version": "1.0.0",
+  "description": "NexusSynth Batch Processing Configuration",
+  "world_config": {
+    "frame_period": 5.0,
+    "f0_method": "harvest",
+    "use_world_vocoder": true,
+    "fft_size": 2048
+  },
+  "model_training": {
+    "hmm_states": 5,
+    "gaussians_per_state": 8,
+    "training_iterations": 50,
+    "convergence_threshold": 0.001,
+    "context_dependent": true
+  },
+  "batch_processing": {
+    "max_concurrent_jobs": 0,
+    "memory_limit_mb": 0,
+    "enable_progress_reporting": true,
+    "auto_validation": true,
+    "generate_reports": true
+  },
+  "output_config": {
+    "compression_enabled": true,
+    "compression_level": 6,
+    "checksum_enabled": true,
+    "preserve_metadata": true
+  },
+  "validation": {
+    "strict_mode": false,
+    "generate_validation_report": true,
+    "validation_report_format": "json",
+    "skip_audio_validation": false
+  },
+  "logging": {
+    "level": "info",
+    "console_output": true,
+    "file_output": true,
+    "max_log_files": 10,
+    "max_log_size_mb": 50
+  },
+  "presets": {
+    "fast": {
+      "world_config": {
+        "frame_period": 10.0,
+        "fft_size": 1024
+      },
+      "model_training": {
+        "hmm_states": 3,
+        "gaussians_per_state": 4,
+        "training_iterations": 20
+      },
+      "output_config": {
+        "compression_level": 3
+      }
+    },
+    "quality": {
+      "world_config": {
+        "frame_period": 2.5,
+        "fft_size": 4096
+      },
+      "model_training": {
+        "hmm_states": 7,
+        "gaussians_per_state": 16,
+        "training_iterations": 100
+      },
+      "output_config": {
+        "compression_level": 9
+      }
+    },
+    "batch": {
+      "batch_processing": {
+        "max_concurrent_jobs": 8,
+        "memory_limit_mb": 8192
+      },
+      "world_config": {
+        "frame_period": 5.0
+      },
+      "model_training": {
+        "hmm_states": 4,
+        "gaussians_per_state": 6,
+        "training_iterations": 30
+      },
+      "validation": {
+        "strict_mode": false,
+        "skip_audio_validation": true
+      }
+    }
+  }
+}
