@@ -1,0 +1,163 @@
+{
+  "version": "1.0.0",
+  "description": "Quality thresholds for NexusSynth integration tests",
+  
+  "synthesis_quality": {
+    "audio_quality": {
+      "min_snr_db": 20.0,
+      "min_thd_n_db": -40.0,
+      "max_noise_floor_db": -60.0,
+      "frequency_response": {
+        "min_frequency_hz": 80.0,
+        "max_frequency_hz": 8000.0,
+        "max_deviation_db": 6.0
+      },
+      "spectral_analysis": {
+        "min_spectral_centroid_hz": 200.0,
+        "max_spectral_centroid_hz": 4000.0,
+        "min_spectral_bandwidth_hz": 100.0,
+        "max_spectral_rolloff_hz": 8000.0
+      }
+    },
+    
+    "timing_accuracy": {
+      "max_onset_deviation_ms": 50.0,
+      "max_duration_deviation_percent": 15.0,
+      "max_phoneme_boundary_error_ms": 25.0
+    },
+    
+    "pitch_accuracy": {
+      "max_f0_deviation_cents": 50.0,
+      "max_f0_jitter_percent": 2.0,
+      "min_f0_stability": 0.85,
+      "pitch_shift_accuracy_cents": 25.0
+    }
+  },
+  
+  "performance_requirements": {
+    "synthesis_speed": {
+      "max_render_time_per_second_ms": 2000,
+      "max_initialization_time_ms": 1000,
+      "max_cleanup_time_ms": 500
+    },
+    
+    "memory_usage": {
+      "max_base_memory_mb": 256,
+      "max_memory_per_phoneme_kb": 512,
+      "max_peak_memory_mb": 1024,
+      "max_memory_growth_percent": 20.0
+    },
+    
+    "cpu_usage": {
+      "max_cpu_percent": 80.0,
+      "max_cpu_spikes": 3,
+      "max_sustained_load_seconds": 30
+    }
+  },
+  
+  "conversion_quality": {
+    "file_integrity": {
+      "checksum_verification": true,
+      "header_validation": true,
+      "chunk_consistency": true,
+      "compression_integrity": true
+    },
+    
+    "model_quality": {
+      "min_phoneme_coverage_percent": 90.0,
+      "max_model_variance_ratio": 10.0,
+      "min_gaussian_components": 1,
+      "max_gaussian_components": 32,
+      "min_hmm_states": 3,
+      "max_hmm_states": 7
+    },
+    
+    "conversion_performance": {
+      "max_time_per_phoneme_ms": 5000,
+      "max_total_conversion_time_minutes": 10,
+      "max_memory_during_conversion_mb": 2048
+    }
+  },
+  
+  "compatibility_requirements": {
+    "utau_flags": {
+      "supported_flags": [
+        "g", "t", "v", "bre", "bri", "cle", "ope", "mod"
+      ],
+      "flag_processing_accuracy": 0.9,
+      "max_flag_processing_time_ms": 100
+    },
+    
+    "file_format": {
+      "nvm_version_compatibility": ["1.0", "1.1"],
+      "wav_format_support": ["PCM16", "PCM24", "PCM32"],
+      "sample_rate_support": [22050, 44100, 48000]
+    }
+  },
+  
+  "regression_thresholds": {
+    "quality_degradation": {
+      "max_snr_loss_db": 2.0,
+      "max_similarity_loss": 0.1,
+      "max_frequency_response_change_db": 3.0
+    },
+    
+    "performance_regression": {
+      "max_speed_degradation_percent": 25.0,
+      "max_memory_increase_percent": 20.0,
+      "max_file_size_increase_percent": 15.0
+    },
+    
+    "stability_requirements": {
+      "min_success_rate": 0.95,
+      "max_crash_rate": 0.01,
+      "max_error_rate": 0.05
+    }
+  },
+  
+  "test_categories": {
+    "basic": {
+      "description": "Fundamental functionality tests",
+      "required_pass_rate": 1.0,
+      "allowed_warnings": 5,
+      "max_execution_time_minutes": 5
+    },
+    
+    "advanced": {
+      "description": "Advanced feature and edge case tests",
+      "required_pass_rate": 0.9,
+      "allowed_warnings": 10,
+      "max_execution_time_minutes": 15
+    },
+    
+    "performance": {
+      "description": "Performance and scalability tests",
+      "required_pass_rate": 0.85,
+      "allowed_warnings": 15,
+      "max_execution_time_minutes": 30
+    },
+    
+    "compatibility": {
+      "description": "UTAU compatibility and interoperability tests",
+      "required_pass_rate": 0.9,
+      "allowed_warnings": 20,
+      "max_execution_time_minutes": 20
+    }
+  },
+  
+  "environment_requirements": {
+    "minimum_system": {
+      "ram_mb": 4096,
+      "cpu_cores": 2,
+      "disk_space_mb": 1024,
+      "os_versions": ["Windows 10+", "macOS 10.15+", "Ubuntu 18.04+"]
+    },
+    
+    "test_environment": {
+      "isolated_temp_directory": true,
+      "clean_state_per_test": true,
+      "resource_cleanup": true,
+      "deterministic_random_seed": 12345
+    }
+  }
+}

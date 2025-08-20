@@ -1,0 +1,157 @@
+# Integration Tests for NexusSynth
+# End-to-end testing of voice synthesis pipeline
+
+# Create integration test data directory
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test_data)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test_results)
+
+# Integration test configuration
+set(INTEGRATION_TEST_TIMEOUT 300) # 5 minutes for long-running tests
+
+# Voice bank conversion tests
+set(CONVERSION_TEST_SOURCES
+    conversion/test_voicebank_conversion.cpp
+    conversion/test_nvm_generation.cpp
+    conversion/test_conditioning_pipeline.cpp
+)
+
+# End-to-end synthesis tests  
+set(SYNTHESIS_TEST_SOURCES
+    synthesis/test_e2e_synthesis.cpp
+    synthesis/test_utau_compatibility.cpp
+    synthesis/test_parameter_validation.cpp
+)
+
+# Performance benchmark tests
+set(BENCHMARK_TEST_SOURCES
+    benchmarks/test_rendering_performance.cpp
+    benchmarks/test_memory_usage.cpp
+    benchmarks/test_scalability.cpp
+)
+
+# Quality comparison tests
+set(QUALITY_TEST_SOURCES
+    quality/test_quality_metrics.cpp
+    quality/test_ab_comparison.cpp
+    quality/test_spectral_analysis.cpp
+)
+
+# Test utility library
+add_library(integration_test_utils STATIC
+    utils/test_data_manager.cpp
+    utils/audio_comparator.cpp
+    utils/performance_monitor.cpp
+    utils/quality_analyzer.cpp
+)
+
+target_include_directories(integration_test_utils PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/utils
+)
+
+target_link_libraries(integration_test_utils
+    nexussynth_lib
+    world
+    Eigen3::Eigen
+)
+
+# Function to create integration test executable
+function(create_integration_test TEST_NAME TEST_SOURCES)
+    add_executable(${TEST_NAME} ${TEST_SOURCES})
+    
+    target_link_libraries(${TEST_NAME}
+        nexussynth_lib
+        integration_test_utils
+        GTest::gtest_main
+        GTest::gtest
+        world
+        Eigen3::Eigen
+        asmjit::asmjit
+        cjson
+    )
+    
+    if(OpenMP_CXX_FOUND)
+        target_link_libraries(${TEST_NAME} OpenMP::OpenMP_CXX)
+    endif()
+    
+    # Link pthread on Unix systems
+    if(UNIX)
+        target_link_libraries(${TEST_NAME} pthread)
+    endif()
+    
+    set_target_properties(${TEST_NAME} PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON
+        CXX_EXTENSIONS OFF
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    )
+    
+    # Register with CTest with extended timeout
+    add_test(NAME ${TEST_NAME} 
+             COMMAND ${TEST_NAME}
+             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT ${INTEGRATION_TEST_TIMEOUT}
+        LABELS "integration"
+    )
+endfunction()
+
+# Create integration test executables
+create_integration_test(integration_voicebank_conversion "conversion/test_voicebank_conversion.cpp")
+create_integration_test(integration_nvm_generation "conversion/test_nvm_generation.cpp")
+create_integration_test(integration_e2e_synthesis "synthesis/test_e2e_synthesis.cpp")
+create_integration_test(integration_utau_compatibility "synthesis/test_utau_compatibility.cpp")
+create_integration_test(integration_rendering_performance "benchmarks/test_rendering_performance.cpp")
+create_integration_test(integration_quality_metrics "quality/test_quality_metrics.cpp")
+
+# Custom targets for running test categories
+add_custom_target(test_conversion
+    COMMAND ${CMAKE_CTEST_COMMAND} -L "conversion" --verbose
+    DEPENDS integration_voicebank_conversion integration_nvm_generation
+    COMMENT "Running voice bank conversion tests"
+)
+
+add_custom_target(test_synthesis  
+    COMMAND ${CMAKE_CTEST_COMMAND} -L "synthesis" --verbose
+    DEPENDS integration_e2e_synthesis integration_utau_compatibility
+    COMMENT "Running end-to-end synthesis tests"
+)
+
+add_custom_target(test_benchmarks
+    COMMAND ${CMAKE_CTEST_COMMAND} -L "benchmarks" --verbose  
+    DEPENDS integration_rendering_performance
+    COMMENT "Running performance benchmark tests"
+)
+
+add_custom_target(test_quality
+    COMMAND ${CMAKE_CTEST_COMMAND} -L "quality" --verbose
+    DEPENDS integration_quality_metrics
+    COMMENT "Running quality comparison tests"
+)
+
+# Main integration test target
+add_custom_target(integration_tests
+    COMMAND ${CMAKE_CTEST_COMMAND} -L "integration" --verbose --parallel 2
+    DEPENDS 
+        integration_voicebank_conversion
+        integration_nvm_generation
+        integration_e2e_synthesis
+        integration_utau_compatibility
+        integration_rendering_performance
+        integration_quality_metrics
+    COMMENT "Running all integration tests"
+)
+
+# Copy test configuration files
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config/test_scenarios.json.in 
+               ${CMAKE_CURRENT_BINARY_DIR}/config/test_scenarios.json @ONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config/quality_thresholds.json.in
+               ${CMAKE_CURRENT_BINARY_DIR}/config/quality_thresholds.json @ONLY)
+
+# Set test labels for categorization
+set_tests_properties(integration_voicebank_conversion PROPERTIES LABELS "integration;conversion")
+set_tests_properties(integration_nvm_generation PROPERTIES LABELS "integration;conversion")
+set_tests_properties(integration_e2e_synthesis PROPERTIES LABELS "integration;synthesis")
+set_tests_properties(integration_utau_compatibility PROPERTIES LABELS "integration;synthesis")
+set_tests_properties(integration_rendering_performance PROPERTIES LABELS "integration;benchmarks")
+set_tests_properties(integration_quality_metrics PROPERTIES LABELS "integration;quality")

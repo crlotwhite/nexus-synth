@@ -708,8 +708,8 @@
             "title": "자동화 테스트 스위트 설계 및 구성",
             "description": "다양한 보이스뱅크를 활용한 end-to-end 통합 테스트 스위트를 설계하고 구성합니다.",
             "dependencies": [],
-            "details": "표준 UTAU 보이스뱅크 5종 이상 선정, 테스트 시나리오 정의(노멀/고음/저음/빠른속도/느린속도), 입력 WAV/예상 출력 쌍 준비, 테스트 데이터셋 구성, 테스트 실행 환경 설정",
-            "status": "pending",
+            "details": "표준 UTAU 보이스뱅크 5종 이상 선정, 테스트 시나리오 정의(노멀/고음/저음/빠른속도/느린속도), 입력 WAV/예상 출력 쌍 준비, 테스트 데이터셋 구성, 테스트 실행 환경 설정\n<info added on 2025-08-20T09:20:21.891Z>\nTask 10.1에서 구현된 통합 테스트 스위트의 `AudioComparator` 및 `QualityAnalyzer` 컴포넌트를 활용하여 A/B 품질 비교 기능을 구현합니다. SNR, 스펙트럼 유사도, 교차 상관 등 다양한 오디오 품질 지표를 기반으로 비교 로직을 개발하고, 비교 결과를 시각적으로 제공하는 도구를 구축합니다.\n</info added on 2025-08-20T09:20:21.891Z>",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -778,7 +778,7 @@
     ],
     "metadata": {
       "created": "2025-08-16T15:50:51.347Z",
-      "updated": "2025-08-20T09:07:44.014Z",
+      "updated": "2025-08-20T09:20:28.543Z",
       "description": "Tasks for master context"
     }
   }

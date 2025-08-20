@@ -1,0 +1,275 @@
+{
+  "version": "1.0.0",
+  "description": "NexusSynth Integration Test Scenarios",
+  "scenarios": [
+    {
+      "id": "basic_synthesis",
+      "name": "Basic Synthesis Test",
+      "description": "Test basic vowel synthesis with minimal voice bank",
+      "category": "synthesis",
+      "voice_bank": "minimal_test",
+      "input_text": "a i u e o",
+      "parameters": {
+        "pitch_shift_semitones": 0.0,
+        "tempo_factor": 1.0,
+        "volume": 1.0,
+        "expression": ""
+      },
+      "quality_thresholds": {
+        "min_snr_db": 20.0,
+        "max_render_time_ms": 5000,
+        "max_memory_mb": 256,
+        "similarity_threshold": 0.85
+      },
+      "expected_outputs": {
+        "audio_file": "basic_synthesis_expected.wav",
+        "duration_ms": 2500,
+        "sample_rate": 44100
+      }
+    },
+    {
+      "id": "pitch_shift_positive",
+      "name": "Positive Pitch Shift Test",
+      "description": "Test synthesis with positive pitch adjustment",
+      "category": "synthesis",
+      "voice_bank": "minimal_test",
+      "input_text": "ka ki ku ke ko",
+      "parameters": {
+        "pitch_shift_semitones": 12.0,
+        "tempo_factor": 1.0,
+        "volume": 1.0,
+        "expression": ""
+      },
+      "quality_thresholds": {
+        "min_snr_db": 18.0,
+        "max_render_time_ms": 8000,
+        "max_memory_mb": 512,
+        "similarity_threshold": 0.75
+      },
+      "expected_outputs": {
+        "audio_file": "pitch_shift_positive_expected.wav",
+        "duration_ms": 3000,
+        "sample_rate": 44100
+      }
+    },
+    {
+      "id": "pitch_shift_negative",
+      "name": "Negative Pitch Shift Test", 
+      "description": "Test synthesis with negative pitch adjustment",
+      "category": "synthesis",
+      "voice_bank": "minimal_test",
+      "input_text": "sa si su se so",
+      "parameters": {
+        "pitch_shift_semitones": -6.0,
+        "tempo_factor": 1.0,
+        "volume": 1.0,
+        "expression": ""
+      },
+      "quality_thresholds": {
+        "min_snr_db": 18.0,
+        "max_render_time_ms": 8000,
+        "max_memory_mb": 512,
+        "similarity_threshold": 0.75
+      },
+      "expected_outputs": {
+        "audio_file": "pitch_shift_negative_expected.wav",
+        "duration_ms": 3000,
+        "sample_rate": 44100
+      }
+    },
+    {
+      "id": "tempo_fast",
+      "name": "Fast Tempo Test",
+      "description": "Test synthesis with increased tempo",
+      "category": "synthesis",
+      "voice_bank": "minimal_test",
+      "input_text": "ta ti tu te to",
+      "parameters": {
+        "pitch_shift_semitones": 0.0,
+        "tempo_factor": 1.5,
+        "volume": 1.0,
+        "expression": ""
+      },
+      "quality_thresholds": {
+        "min_snr_db": 18.0,
+        "max_render_time_ms": 6000,
+        "max_memory_mb": 512,
+        "similarity_threshold": 0.8
+      },
+      "expected_outputs": {
+        "audio_file": "tempo_fast_expected.wav",
+        "duration_ms": 2000,
+        "sample_rate": 44100
+      }
+    },
+    {
+      "id": "tempo_slow",
+      "name": "Slow Tempo Test",
+      "description": "Test synthesis with decreased tempo",
+      "category": "synthesis",
+      "voice_bank": "minimal_test",
+      "input_text": "na ni nu ne no",
+      "parameters": {
+        "pitch_shift_semitones": 0.0,
+        "tempo_factor": 0.7,
+        "volume": 1.0,
+        "expression": ""
+      },
+      "quality_thresholds": {
+        "min_snr_db": 18.0,
+        "max_render_time_ms": 8000,
+        "max_memory_mb": 512,
+        "similarity_threshold": 0.8
+      },
+      "expected_outputs": {
+        "audio_file": "tempo_slow_expected.wav",
+        "duration_ms": 4500,
+        "sample_rate": 44100
+      }
+    },
+    {
+      "id": "utau_flags_gender",
+      "name": "UTAU Gender Flags Test",
+      "description": "Test UTAU gender flag processing",
+      "category": "compatibility",
+      "voice_bank": "minimal_test",
+      "input_text": "ma mi mu me mo",
+      "parameters": {
+        "pitch_shift_semitones": 0.0,
+        "tempo_factor": 1.0,
+        "volume": 1.0,
+        "expression": "g+10"
+      },
+      "quality_thresholds": {
+        "min_snr_db": 16.0,
+        "max_render_time_ms": 10000,
+        "max_memory_mb": 512,
+        "similarity_threshold": 0.7
+      },
+      "expected_outputs": {
+        "audio_file": "utau_flags_gender_expected.wav",
+        "duration_ms": 3000,
+        "sample_rate": 44100
+      }
+    },
+    {
+      "id": "long_sequence",
+      "name": "Long Sequence Test",
+      "description": "Test synthesis of longer phoneme sequences",
+      "category": "performance",
+      "voice_bank": "minimal_test", 
+      "input_text": "ka ki ku ke ko sa si su se so ta ti tu te to na ni nu ne no ma mi mu me mo ra ri ru re ro",
+      "parameters": {
+        "pitch_shift_semitones": 0.0,
+        "tempo_factor": 1.0,
+        "volume": 1.0,
+        "expression": ""
+      },
+      "quality_thresholds": {
+        "min_snr_db": 15.0,
+        "max_render_time_ms": 20000,
+        "max_memory_mb": 1024,
+        "similarity_threshold": 0.7
+      },
+      "expected_outputs": {
+        "audio_file": "long_sequence_expected.wav",
+        "duration_ms": 12000,
+        "sample_rate": 44100
+      }
+    },
+    {
+      "id": "conversion_quality_fast",
+      "name": "Fast Conversion Quality Test",
+      "description": "Test voice bank conversion with fast preset quality",
+      "category": "conversion",
+      "voice_bank": "minimal_test",
+      "input_text": "",
+      "parameters": {
+        "conversion_preset": "fast",
+        "validation_strict": false
+      },
+      "quality_thresholds": {
+        "max_conversion_time_ms": 15000,
+        "max_memory_mb": 512,
+        "min_file_size_bytes": 1024,
+        "max_file_size_mb": 50
+      },
+      "expected_outputs": {
+        "nvm_file": "conversion_fast.nvm",
+        "validation_errors": 0,
+        "validation_warnings": 10
+      }
+    },
+    {
+      "id": "conversion_quality_high",
+      "name": "High Quality Conversion Test",
+      "description": "Test voice bank conversion with quality preset",
+      "category": "conversion",
+      "voice_bank": "minimal_test",
+      "input_text": "",
+      "parameters": {
+        "conversion_preset": "quality",
+        "validation_strict": true
+      },
+      "quality_thresholds": {
+        "max_conversion_time_ms": 60000,
+        "max_memory_mb": 1024,
+        "min_file_size_bytes": 2048,
+        "max_file_size_mb": 100
+      },
+      "expected_outputs": {
+        "nvm_file": "conversion_quality.nvm",
+        "validation_errors": 0,
+        "validation_warnings": 5
+      }
+    },
+    {
+      "id": "batch_performance",
+      "name": "Batch Processing Performance Test",
+      "description": "Test batch processing of multiple voice banks",
+      "category": "performance",
+      "voice_bank": "batch_test_set",
+      "input_text": "",
+      "parameters": {
+        "batch_size": 3,
+        "parallel_jobs": 2,
+        "conversion_preset": "default"
+      },
+      "quality_thresholds": {
+        "max_total_time_ms": 90000,
+        "max_memory_mb": 2048,
+        "min_success_rate": 0.9
+      },
+      "expected_outputs": {
+        "output_files": 3,
+        "failed_conversions": 0
+      }
+    }
+  ],
+  
+  "voice_bank_definitions": [
+    {
+      "name": "minimal_test",
+      "type": "CV",
+      "language": "japanese",
+      "phoneme_count": 33,
+      "description": "Minimal test voice bank with basic Japanese CV phonemes"
+    },
+    {
+      "name": "batch_test_set",
+      "type": "multiple",
+      "language": "japanese",
+      "phoneme_count": 99,
+      "description": "Set of 3 voice banks for batch testing"
+    }
+  ],
+  
+  "global_settings": {
+    "test_data_version": "@PROJECT_VERSION@",
+    "max_parallel_tests": 4,
+    "test_timeout_seconds": 300,
+    "temp_file_cleanup": true,
+    "verbose_output": false,
+    "save_intermediate_files": false
+  }
+}

@@ -160,3 +160,6 @@ add_custom_target(run_all_tests
         nexussynth_conditioning_config_test
     COMMENT "Running all NexusSynth tests"
 )
+
+# Include integration tests
+add_subdirectory(integration)
