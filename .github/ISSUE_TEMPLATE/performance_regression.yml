@@ -1,0 +1,128 @@
+name: 🐌 Performance Regression
+description: Report a performance regression detected by automated testing
+title: "Performance Regression: [Benchmark Name] on [Platform]"
+labels: [performance, regression, high-priority]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Performance Regression Report
+        
+        This template is used to report performance regressions detected by our automated CI/CD pipeline.
+        
+  - type: input
+    id: detection_workflow
+    attributes:
+      label: Detection Workflow
+      description: Which workflow detected this regression?
+      placeholder: e.g., "Nightly Performance Testing", "PR Performance Impact"
+    validations:
+      required: true
+      
+  - type: input
+    id: benchmark_name
+    attributes:
+      label: Benchmark Name
+      description: Name of the affected benchmark
+      placeholder: e.g., "phoneme_synthesis", "pitch_shift"
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Affected Platform
+      description: Which platform(s) show the regression?
+      options:
+        - Windows x64
+        - Ubuntu (GCC)
+        - Ubuntu (Clang)
+        - macOS Intel
+        - macOS ARM64
+        - All Platforms
+        - Multiple Platforms
+    validations:
+      required: true
+      
+  - type: input
+    id: regression_percent
+    attributes:
+      label: Performance Degradation
+      description: Percentage of performance degradation
+      placeholder: e.g., "15.2%"
+    validations:
+      required: true
+      
+  - type: input
+    id: baseline_time
+    attributes:
+      label: Baseline Performance
+      description: Baseline execution time (in milliseconds)
+      placeholder: e.g., "45.2ms"
+    validations:
+      required: true
+      
+  - type: input
+    id: current_time
+    attributes:
+      label: Current Performance
+      description: Current execution time (in milliseconds)
+      placeholder: e.g., "52.1ms"
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity Level
+      description: How severe is this regression?
+      options:
+        - Critical (>50% degradation)
+        - High (30-50% degradation)
+        - Medium (15-30% degradation)
+        - Low (5-15% degradation)
+    validations:
+      required: true
+      
+  - type: input
+    id: commit_range
+    attributes:
+      label: Suspected Commit Range
+      description: Range of commits where regression likely occurred
+      placeholder: e.g., "abc123..def456"
+      
+  - type: textarea
+    id: analysis_data
+    attributes:
+      label: Performance Analysis Data
+      description: Paste relevant performance analysis data or link to workflow artifacts
+      placeholder: |
+        Link to workflow run: https://github.com/user/repo/actions/runs/12345
+        
+        Additional metrics:
+        - Memory usage change: +5.2%
+        - Thread scalability: Degraded
+        
+  - type: checkboxes
+    id: investigation_steps
+    attributes:
+      label: Investigation Checklist
+      description: Steps to investigate this regression
+      options:
+        - label: Review commits in suspected range
+        - label: Run targeted profiling on affected benchmark
+        - label: Check for algorithmic changes
+        - label: Verify dependency version changes
+        - label: Test with different compiler optimizations
+        - label: Consider reverting suspected changes
+        
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional Context
+      description: Any other relevant information about this regression
+      placeholder: |
+        - Recent changes to synthesis engine
+        - New dependency versions
+        - Platform-specific observations

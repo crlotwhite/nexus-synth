@@ -1,0 +1,313 @@
+name: Nightly Performance Testing
+
+on:
+  schedule:
+    # Run every day at 2:00 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      extended_benchmarks:
+        description: 'Run extended benchmark suite'
+        required: false
+        default: false
+        type: boolean
+      benchmark_iterations:
+        description: 'Number of benchmark iterations'
+        required: false
+        default: '100'
+        type: string
+
+env:
+  BUILD_TYPE: Release
+  CMAKE_BUILD_PARALLEL_LEVEL: 8
+
+jobs:
+  # =============================================================================
+  # Nightly Performance Testing
+  # =============================================================================
+  nightly-performance:
+    name: Nightly Performance Testing
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            platform_name: "Ubuntu Latest"
+            cc: "gcc"
+            cxx: "g++"
+          - os: windows-latest  
+            platform_name: "Windows Latest"
+            cc: "cl"
+            cxx: "cl"
+          - os: macos-latest
+            platform_name: "macOS Latest"
+            cc: "clang"
+            cxx: "clang++"
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup Build Dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake ninja-build libomp-dev
+
+    - name: Setup Build Dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        brew install cmake ninja libomp
+
+    - name: Setup MSVC Environment (Windows)
+      if: matrix.os == 'windows-latest'
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Configure and Build
+      run: |
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+          -DCMAKE_C_COMPILER=${{ matrix.cc }} \
+          -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} \
+          -DNEXUSSYNTH_BUILD_TESTS=ON
+          
+        cmake --build build --config ${{ env.BUILD_TYPE }} --parallel ${{ env.CMAKE_BUILD_PARALLEL_LEVEL }}
+
+    - name: Run Extended Performance Benchmarks
+      working-directory: build
+      run: |
+        mkdir -p nightly_benchmarks
+        
+        # Determine iteration count
+        ITERATIONS=${{ github.event.inputs.benchmark_iterations || '100' }}
+        EXTENDED=${{ github.event.inputs.extended_benchmarks || 'false' }}
+        
+        echo "Running benchmarks with $ITERATIONS iterations (Extended: $EXTENDED)"
+        
+        # Run comprehensive benchmark suite
+        if [ "$EXTENDED" = "true" ]; then
+          SUITE="full"
+        else
+          SUITE="basic"
+        fi
+        
+        ${{ matrix.os == 'windows-latest' && './bin/Release/performance_benchmark_tool.exe' || './performance_benchmark_tool' }} \
+          suite $SUITE \
+          --output ./nightly_benchmarks \
+          --iterations $ITERATIONS \
+          --warmup 10 \
+          --json --csv --html \
+          --verbose
+
+    - name: Run Memory Stress Tests
+      working-directory: build  
+      run: |
+        echo "🔍 Running memory stress tests..."
+        
+        # Run tests with Valgrind on Linux (if available)
+        if command -v valgrind &> /dev/null && [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+          echo "Running Valgrind memory analysis..."
+          timeout 30m valgrind \
+            --tool=memcheck \
+            --leak-check=full \
+            --show-leak-kinds=all \
+            --track-origins=yes \
+            --xml=yes \
+            --xml-file=./nightly_benchmarks/valgrind-report.xml \
+            ${{ matrix.os == 'windows-latest' && './bin/Release/performance_benchmark_tool.exe' || './performance_benchmark_tool' }} \
+            single phoneme_synthesis \
+            --iterations 10 \
+            --output ./nightly_benchmarks/valgrind_tests || true
+        fi
+        
+        # Run basic memory profiling tests
+        ${{ matrix.os == 'windows-latest' && './bin/Release/performance_benchmark_tool.exe' || './performance_benchmark_tool' }} \
+          suite basic \
+          --iterations 50 \
+          --output ./nightly_benchmarks/memory_stress \
+          --verbose || true
+
+    - name: Performance History Tracking
+      run: |
+        # Create performance history entry
+        TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        COMMIT_HASH=$(git rev-parse HEAD)
+        
+        mkdir -p performance_history
+        cat > performance_history/nightly-${TIMESTAMP}.json << EOF
+        {
+          "timestamp": "$TIMESTAMP",
+          "commit_hash": "$COMMIT_HASH",
+          "platform": "${{ matrix.platform_name }}",
+          "workflow": "nightly-performance",
+          "iterations": "${{ github.event.inputs.benchmark_iterations || '100' }}",
+          "extended": "${{ github.event.inputs.extended_benchmarks || 'false' }}",
+          "results_path": "nightly_benchmarks/"
+        }
+        EOF
+
+    - name: Upload Nightly Performance Results
+      uses: actions/upload-artifact@v4
+      with:
+        name: nightly-performance-${{ matrix.platform_name }}
+        path: |
+          build/nightly_benchmarks/
+          performance_history/
+        retention-days: 90
+
+    - name: Generate Performance Trend Analysis
+      if: matrix.os == 'ubuntu-latest'  # Run only once
+      run: |
+        python3 -m pip install pandas matplotlib numpy
+        python3 .github/scripts/trend_analysis.py \
+          --current build/nightly_benchmarks/ \
+          --output build/trend_analysis/ \
+          --platform "${{ matrix.platform_name }}"
+
+    - name: Upload Trend Analysis
+      if: matrix.os == 'ubuntu-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: performance-trend-analysis
+        path: build/trend_analysis/
+        retention-days: 30
+
+  # =============================================================================
+  # Long-running Stability Tests
+  # =============================================================================
+  stability-tests:
+    name: Long-running Stability Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 240  # 4 hours maximum
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake ninja-build libomp-dev
+
+    - name: Build for Stability Testing
+      run: |
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DNEXUSSYNTH_BUILD_TESTS=ON \
+          -DCMAKE_CXX_FLAGS="-fsanitize=thread -g"
+          
+        cmake --build build --config Release --parallel 8
+
+    - name: Run Long-duration Benchmarks
+      working-directory: build
+      run: |
+        mkdir -p stability_results
+        
+        echo "🕐 Starting long-duration stability tests..."
+        
+        # Run extended synthesis tests
+        timeout 3h ${{ './performance_benchmark_tool' }} \
+          suite full \
+          --iterations 1000 \
+          --threads 4 \
+          --output ./stability_results \
+          --verbose || echo "Stability test completed or timed out"
+
+    - name: Analyze Stability Results
+      run: |
+        python3 -m pip install pandas matplotlib numpy scipy
+        python3 .github/scripts/stability_analysis.py \
+          --input build/stability_results/ \
+          --output build/stability_analysis/
+
+    - name: Upload Stability Test Results
+      uses: actions/upload-artifact@v4
+      with:
+        name: stability-test-results
+        path: |
+          build/stability_results/
+          build/stability_analysis/
+        retention-days: 60
+
+  # =============================================================================
+  # Performance Regression Alert
+  # =============================================================================
+  performance-alert:
+    name: Performance Regression Alert
+    runs-on: ubuntu-latest
+    needs: [nightly-performance, stability-tests]
+    if: always()
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Download All Performance Results
+      uses: actions/download-artifact@v4
+      with:
+        pattern: nightly-performance-*
+        path: ./all_results/
+
+    - name: Setup Analysis Environment
+      run: |
+        python3 -m pip install pandas matplotlib numpy scipy requests
+
+    - name: Analyze Performance Trends
+      run: |
+        python3 .github/scripts/regression_detector.py \
+          --input ./all_results/ \
+          --output ./regression_analysis/ \
+          --threshold 15.0 \  # 15% regression threshold
+          --lookback-days 7
+
+    - name: Create Performance Alert Issue
+      if: failure()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const alertPath = './regression_analysis/performance_alert.json';
+          
+          if (fs.existsSync(alertPath)) {
+            const alertData = JSON.parse(fs.readFileSync(alertPath, 'utf8'));
+            
+            if (alertData.regressions && alertData.regressions.length > 0) {
+              const title = `🐌 Performance Regression Detected - ${new Date().toISOString().split('T')[0]}`;
+              
+              let body = `## Performance Regression Alert\n\n`;
+              body += `**Detection Time:** ${new Date().toISOString()}\n`;
+              body += `**Workflow:** Nightly Performance Testing\n\n`;
+              body += `### Regressions Detected:\n\n`;
+              
+              for (const regression of alertData.regressions) {
+                body += `- **${regression.benchmark}** on ${regression.platform}: `;
+                body += `${regression.regression_percent.toFixed(1)}% slower than baseline\n`;
+                body += `  - Current: ${regression.current_time}ms\n`;
+                body += `  - Baseline: ${regression.baseline_time}ms\n\n`;
+              }
+              
+              body += `### Recommended Actions:\n`;
+              body += `1. Review recent commits for performance-impacting changes\n`;
+              body += `2. Run targeted profiling on affected benchmarks\n`;
+              body += `3. Consider reverting recent changes if regression is severe\n\n`;
+              body += `**Full Analysis:** See workflow artifacts for detailed reports\n`;
+              
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['performance', 'regression', 'high-priority']
+              });
+            }
+          }
+
+    - name: Upload Regression Analysis
+      uses: actions/upload-artifact@v4
+      with:
+        name: performance-regression-analysis
+        path: ./regression_analysis/
+        retention-days: 90

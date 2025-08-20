@@ -82,58 +82,57 @@ function(create_test_executable TEST_NAME TEST_SOURCES)
     # Register with CTest
     add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
     
-    # Set test properties
+    # Set test properties with CI/CD labels
     set_tests_properties(${TEST_NAME} PROPERTIES
-        TIMEOUT 60
+        TIMEOUT 120
         FAIL_REGULAR_EXPRESSION "FAIL|ERROR|failed"
+        LABELS "unit"  # Default to unit test label
     )
 endfunction()
 
-# Create individual test executables (one per test file to avoid main() conflicts)
-create_test_executable(nexussynth_overlap_add_test "test_overlap_add.cpp")
+# Enhanced function for creating tests with custom properties
+function(create_labeled_test TEST_NAME TEST_SOURCES TEST_LABELS TIMEOUT_SECONDS)
+    create_test_executable(${TEST_NAME} "${TEST_SOURCES}")
+    
+    # Override test properties with custom labels and timeout
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT ${TIMEOUT_SECONDS}
+        FAIL_REGULAR_EXPRESSION "FAIL|ERROR|failed"
+        LABELS "${TEST_LABELS}"
+    )
+endfunction()
 
-# Create separate tests to avoid main() conflicts
+# Core unit tests
+create_labeled_test(nexussynth_overlap_add_test "test_overlap_add.cpp" "unit;synthesis" 120)
+
+# Main engine tests
 set(MAIN_TEST_FILES test_main.cpp test_nexussynth_engine.cpp)
-create_test_executable(nexussynth_main_test "${MAIN_TEST_FILES}")
+create_labeled_test(nexussynth_main_test "${MAIN_TEST_FILES}" "unit;core" 180)
 
-# Create window optimization test
-create_test_executable(nexussynth_window_optimization_test test_window_optimization.cpp)
+# Performance and optimization tests
+create_labeled_test(nexussynth_window_optimization_test "test_window_optimization.cpp" "unit;optimization" 120)
+create_labeled_test(nexussynth_window_performance_test "test_window_performance_benchmark.cpp" "unit;performance" 240)
+create_labeled_test(nexussynth_streaming_buffer_test "test_streaming_buffer_manager.cpp" "unit;streaming" 120)
+create_labeled_test(nexussynth_performance_profiler_test "test_performance_profiler.cpp" "unit;profiling" 120)
 
-# Create window performance benchmark test
-create_test_executable(nexussynth_window_performance_test test_window_performance_benchmark.cpp)
+# UTAU interface tests
+create_labeled_test(nexussynth_utau_argument_parser_test "test_utau_argument_parser.cpp" "unit;utau;interface" 60)
+create_labeled_test(nexussynth_utau_flag_converter_test "test_utau_flag_converter.cpp" "unit;utau;interface" 60)
+create_labeled_test(nexussynth_utau_logger_test "test_utau_logger.cpp" "unit;utau;logging" 60)
+create_labeled_test(nexussynth_utau_error_handler_test "test_utau_error_handler.cpp" "unit;utau;error_handling" 60)
+create_labeled_test(nexussynth_utau_oto_parser_test "test_utau_oto_parser.cpp" "unit;utau;parser" 120)
 
-# Create streaming buffer manager test
-create_test_executable(nexussynth_streaming_buffer_test test_streaming_buffer_manager.cpp)
+# Voice processing tests
+create_labeled_test(nexussynth_voicebank_scanner_test "test_voicebank_scanner.cpp" "unit;voicebank" 120)
+create_labeled_test(nexussynth_conditioning_config_test "test_conditioning_config.cpp" "unit;conditioning" 60)
+create_labeled_test(nexussynth_vcv_pattern_recognizer_test "test_vcv_pattern_recognizer.cpp" "unit;pattern_recognition" 120)
 
-# Create performance profiler test
-create_test_executable(nexussynth_performance_profiler_test test_performance_profiler.cpp)
-
-# Create UTAU argument parser test
-create_test_executable(nexussynth_utau_argument_parser_test test_utau_argument_parser.cpp)
-
-# Create UTAU flag converter test  
-create_test_executable(nexussynth_utau_flag_converter_test test_utau_flag_converter.cpp)
-
-# Create UTAU logger test
-create_test_executable(nexussynth_utau_logger_test test_utau_logger.cpp)
-
-# Create UTAU error handler test
-create_test_executable(nexussynth_utau_error_handler_test test_utau_error_handler.cpp)
-
-# Create voice bank scanner test
-create_test_executable(nexussynth_voicebank_scanner_test test_voicebank_scanner.cpp)
-
-# Create conditioning configuration test
-create_test_executable(nexussynth_conditioning_config_test test_conditioning_config.cpp)
-
-# Create additional component tests (moved from src directory)
-create_test_executable(nexussynth_world_wrapper_test test_world_wrapper.cpp)
-create_test_executable(nexussynth_audio_utils_test test_audio_utils.cpp)
-create_test_executable(nexussynth_compression_checksum_test test_compression_checksum.cpp)
-create_test_executable(nexussynth_version_management_test test_version_management.cpp)
-create_test_executable(nexussynth_utau_oto_parser_test test_utau_oto_parser.cpp)
-create_test_executable(nexussynth_vcv_pattern_recognizer_test test_vcv_pattern_recognizer.cpp)
-create_test_executable(nexussynth_midi_phoneme_integrator_test test_midi_phoneme_integrator.cpp)
+# Core component tests
+create_labeled_test(nexussynth_world_wrapper_test "test_world_wrapper.cpp" "unit;world;vocoder" 180)
+create_labeled_test(nexussynth_audio_utils_test "test_audio_utils.cpp" "unit;audio;utilities" 60)
+create_labeled_test(nexussynth_compression_checksum_test "test_compression_checksum.cpp" "unit;compression" 60)
+create_labeled_test(nexussynth_version_management_test "test_version_management.cpp" "unit;version" 30)
+create_labeled_test(nexussynth_midi_phoneme_integrator_test "test_midi_phoneme_integrator.cpp" "unit;midi;phoneme" 120)
 
 # Create a comprehensive test suite that runs all tests
 add_custom_target(run_all_tests

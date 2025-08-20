@@ -743,8 +743,8 @@
               "10.2",
               "10.3"
             ],
-            "details": "GitHub Actions 워크플로우 작성, Windows/Linux/macOS 멀티 플랫폼 빌드, 자동 단위/통합 테스트 실행, 벤치마크 결과 자동 측정 및 보고, 릴리즈 자동화",
-            "status": "pending",
+            "details": "GitHub Actions 워크플로우 작성, Windows/Linux/macOS 멀티 플랫폼 빌드, 자동 단위/통합 테스트 실행, 벤치마크 결과 자동 측정 및 보고, 릴리즈 자동화\n<info added on 2025-08-20T13:16:09.992Z>\n, CodeQL 보안 분석, 아티팩트 정리 및 보존 정책(빌드 30일, 성능 90일, 릴리즈 365일) 포함. 야간 성능 테스트(`nightly-builds.yml`) 및 PR 유효성 검사(`pull-request.yml`) 워크플로우 추가. Windows MSVC 2022, Ubuntu GCC/Clang, macOS Intel/ARM64 빌드 지원(플랫폼당 최대 8개 병렬 작업). CTest 레이블 및 타임아웃(단위 120s, 통합 600s, 성능 240s)을 포함한 CMake 테스트 구성 강화. `analyze_performance.py` 등 전용 성능 분석 스크립트, `scipy` 기반 통계 분석 및 `matplotlib` 시각화 HTML 보고서 생성, 15% 이상 성능 저하 시 GitHub 이슈 자동 생성 기능 구현. Dependabot 설정 및 적절한 오류 처리, 타임아웃 관리 포함.\n</info added on 2025-08-20T13:16:09.992Z>",
+            "status": "done",
             "testStrategy": ""
           },
           {
@@ -778,7 +778,7 @@
     ],
     "metadata": {
       "created": "2025-08-16T15:50:51.347Z",
-      "updated": "2025-08-20T09:56:14.581Z",
+      "updated": "2025-08-20T13:16:23.619Z",
       "description": "Tasks for master context"
     }
   }

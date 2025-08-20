@@ -1,0 +1,412 @@
+name: Pull Request Validation
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+env:
+  BUILD_TYPE: Release
+  CMAKE_BUILD_PARALLEL_LEVEL: 4
+
+jobs:
+  # =============================================================================
+  # PR Validation and Quick Tests
+  # =============================================================================
+  quick-validation:
+    name: Quick Validation
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+
+    outputs:
+      should-run-full-tests: ${{ steps.changes.outputs.source-changed || steps.changes.outputs.tests-changed }}
+      should-run-benchmarks: ${{ steps.changes.outputs.source-changed || steps.changes.outputs.performance-changed }}
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 2
+
+    - name: Check Changed Files
+      id: changes
+      run: |
+        # Check what types of files changed
+        SOURCE_CHANGED=$(git diff --name-only HEAD~1 | grep -E '\.(cpp|hpp|h|cc|c)$' | wc -l)
+        TESTS_CHANGED=$(git diff --name-only HEAD~1 | grep -E '^tests/' | wc -l)
+        CMAKE_CHANGED=$(git diff --name-only HEAD~1 | grep -E 'CMakeLists\.txt|\.cmake$' | wc -l)
+        PERF_CHANGED=$(git diff --name-only HEAD~1 | grep -E 'benchmark|performance' | wc -l)
+        
+        echo "source-changed=$([ $SOURCE_CHANGED -gt 0 ] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+        echo "tests-changed=$([ $TESTS_CHANGED -gt 0 ] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+        echo "cmake-changed=$([ $CMAKE_CHANGED -gt 0 ] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+        echo "performance-changed=$([ $PERF_CHANGED -gt 0 ] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+        
+        echo "📊 Changed files summary:"
+        echo "  Source files: $SOURCE_CHANGED"
+        echo "  Test files: $TESTS_CHANGED" 
+        echo "  CMake files: $CMAKE_CHANGED"
+        echo "  Performance files: $PERF_CHANGED"
+
+    - name: Setup Build Environment
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake ninja-build libomp-dev
+
+    - name: Quick Build Test
+      run: |
+        cmake -B build-quick \
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+          -DNEXUSSYNTH_BUILD_TESTS=OFF \
+          -DNEXUSSYNTH_BUILD_EXAMPLES=OFF
+          
+        cmake --build build-quick --config ${{ env.BUILD_TYPE }} --parallel ${{ env.CMAKE_BUILD_PARALLEL_LEVEL }}
+
+  # =============================================================================
+  # Multi-Platform PR Testing (Conditional)
+  # =============================================================================
+  pr-platform-tests:
+    name: PR Platform Tests (${{ matrix.config.name }})
+    runs-on: ${{ matrix.config.os }}
+    needs: quick-validation
+    if: needs.quick-validation.outputs.should-run-full-tests == 'true'
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - {
+              name: "Ubuntu GCC",
+              os: ubuntu-22.04,
+              cc: "gcc-11",
+              cxx: "g++-11",
+              packages: "gcc-11 g++-11"
+            }
+          - {
+              name: "Windows MSVC",
+              os: windows-latest,
+              cc: "cl",
+              cxx: "cl"
+            }
+          - {
+              name: "macOS Clang",
+              os: macos-13,
+              cc: "clang",
+              cxx: "clang++"
+            }
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup Dependencies (Ubuntu)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake ninja-build libomp-dev ${{ matrix.config.packages }}
+
+    - name: Setup Dependencies (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        brew install cmake ninja libomp
+
+    - name: Setup MSVC (Windows)
+      if: runner.os == 'Windows'
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Configure and Build
+      run: |
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+          -DCMAKE_C_COMPILER=${{ matrix.config.cc }} \
+          -DCMAKE_CXX_COMPILER=${{ matrix.config.cxx }} \
+          -DNEXUSSYNTH_BUILD_TESTS=ON \
+          -DNEXUSSYNTH_BUILD_EXAMPLES=OFF
+          
+        cmake --build build --config ${{ env.BUILD_TYPE }} --parallel ${{ env.CMAKE_BUILD_PARALLEL_LEVEL }}
+
+    - name: Run Unit Tests
+      working-directory: build
+      run: |
+        ctest --build-config ${{ env.BUILD_TYPE }} \
+              --output-on-failure \
+              --parallel ${{ env.CMAKE_BUILD_PARALLEL_LEVEL }} \
+              --label-regex "unit" \
+              --timeout 300
+
+    - name: Run Integration Tests (Limited)
+      working-directory: build
+      run: |
+        # Run only essential integration tests for PRs
+        ctest --build-config ${{ env.BUILD_TYPE }} \
+              --output-on-failure \
+              --parallel 2 \
+              --label-regex "integration" \
+              --timeout 600 || true
+
+  # =============================================================================
+  # Performance Impact Assessment
+  # =============================================================================
+  performance-impact:
+    name: Performance Impact Assessment
+    runs-on: ubuntu-latest
+    needs: quick-validation
+    if: needs.quick-validation.outputs.should-run-benchmarks == 'true'
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Need full history for comparison
+
+    - name: Setup Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake ninja-build libomp-dev
+
+    - name: Build Current Branch
+      run: |
+        cmake -B build-current \
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+          -DNEXUSSYNTH_BUILD_TESTS=ON
+          
+        cmake --build build-current --config ${{ env.BUILD_TYPE }} --parallel ${{ env.CMAKE_BUILD_PARALLEL_LEVEL }}
+
+    - name: Run Performance Benchmarks (Current)
+      working-directory: build-current
+      run: |
+        mkdir -p ../pr_benchmarks/current
+        
+        # Run lightweight benchmark suite for PR validation
+        ${{ './performance_benchmark_tool' }} \
+          suite basic \
+          --output ../pr_benchmarks/current \
+          --iterations 20 \
+          --warmup 3 \
+          --json --csv \
+          --verbose
+
+    - name: Checkout Base Branch
+      run: |
+        git fetch origin ${{ github.event.pull_request.base.ref }}
+        git checkout origin/${{ github.event.pull_request.base.ref }}
+
+    - name: Build Base Branch
+      run: |
+        cmake -B build-base \
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+          -DNEXUSSYNTH_BUILD_TESTS=ON
+          
+        cmake --build build-base --config ${{ env.BUILD_TYPE }} --parallel ${{ env.CMAKE_BUILD_PARALLEL_LEVEL }}
+
+    - name: Run Performance Benchmarks (Base)
+      working-directory: build-base
+      run: |
+        mkdir -p ../pr_benchmarks/base
+        
+        ${{ './performance_benchmark_tool' }} \
+          suite basic \
+          --output ../pr_benchmarks/base \
+          --iterations 20 \
+          --warmup 3 \
+          --json --csv \
+          --verbose
+
+    - name: Compare Performance Results
+      run: |
+        python3 -m pip install pandas matplotlib numpy
+        
+        # Create performance comparison script
+        cat > compare_pr_performance.py << 'EOF'
+        import json
+        import os
+        from pathlib import Path
+        
+        def load_benchmarks(path):
+            results = []
+            for json_file in Path(path).rglob("*.json"):
+                try:
+                    with open(json_file, 'r') as f:
+                        data = json.load(f)
+                    if isinstance(data, list):
+                        results.extend(data)
+                    else:
+                        results.append(data)
+                except:
+                    pass
+            return results
+        
+        current_results = load_benchmarks("pr_benchmarks/current")
+        base_results = load_benchmarks("pr_benchmarks/base")
+        
+        # Create comparison summary
+        summary = {
+            "pr_number": "${{ github.event.pull_request.number }}",
+            "base_branch": "${{ github.event.pull_request.base.ref }}",
+            "current_branch": "${{ github.event.pull_request.head.ref }}",
+            "comparisons": []
+        }
+        
+        # Match benchmarks by name
+        current_by_name = {r.get('benchmark_name', 'unknown'): r for r in current_results if r.get('benchmark_successful', False)}
+        base_by_name = {r.get('benchmark_name', 'unknown'): r for r in base_results if r.get('benchmark_successful', False)}
+        
+        for benchmark_name in current_by_name:
+            if benchmark_name in base_by_name:
+                current_time = current_by_name[benchmark_name].get('avg_execution_time_ns', 0)
+                base_time = base_by_name[benchmark_name].get('avg_execution_time_ns', 0)
+                
+                if base_time > 0:
+                    change_percent = ((current_time - base_time) / base_time) * 100
+                    
+                    comparison = {
+                        "benchmark": benchmark_name,
+                        "base_time_ms": round(base_time / 1_000_000, 3),
+                        "current_time_ms": round(current_time / 1_000_000, 3),
+                        "change_percent": round(change_percent, 2),
+                        "significant": abs(change_percent) > 5.0
+                    }
+                    summary["comparisons"].append(comparison)
+        
+        # Save comparison results
+        os.makedirs("pr_benchmarks/analysis", exist_ok=True)
+        with open("pr_benchmarks/analysis/comparison.json", 'w') as f:
+            json.dump(summary, f, indent=2)
+        
+        # Generate markdown summary
+        with open("pr_benchmarks/analysis/pr_summary.md", 'w') as f:
+            f.write(f"## 🚀 Performance Impact Summary\n\n")
+            f.write(f"**PR:** #{summary['pr_number']} ({summary['current_branch']} → {summary['base_branch']})\n\n")
+            
+            significant_changes = [c for c in summary["comparisons"] if c["significant"]]
+            
+            if significant_changes:
+                f.write("### ⚠️ Significant Performance Changes (>5%)\n\n")
+                f.write("| Benchmark | Base (ms) | Current (ms) | Change |\n")
+                f.write("|-----------|-----------|--------------|--------|\n")
+                
+                for comp in significant_changes:
+                    emoji = "🐌" if comp["change_percent"] > 0 else "🚀"
+                    f.write(f"| {comp['benchmark']} | {comp['base_time_ms']} | {comp['current_time_ms']} | {emoji} {comp['change_percent']:.1f}% |\n")
+            else:
+                f.write("### ✅ No Significant Performance Changes\n")
+                f.write("All benchmarks show less than 5% performance change.\n")
+            
+            f.write(f"\n**Total Benchmarks Compared:** {len(summary['comparisons'])}\n")
+        
+        print("Performance comparison completed!")
+        EOF
+        
+        python3 compare_pr_performance.py
+
+    - name: Upload Performance Comparison
+      uses: actions/upload-artifact@v4
+      with:
+        name: pr-performance-comparison
+        path: pr_benchmarks/
+        retention-days: 14
+
+    - name: Comment Performance Results on PR
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const summaryPath = 'pr_benchmarks/analysis/pr_summary.md';
+          
+          if (fs.existsSync(summaryPath)) {
+            const summary = fs.readFileSync(summaryPath, 'utf8');
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });
+          }
+
+  # =============================================================================
+  # Code Quality Checks
+  # =============================================================================
+  code-quality:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-format clang-tidy cppcheck
+
+    - name: Check Code Formatting
+      run: |
+        # Check if code follows formatting standards
+        find src include tests -name "*.cpp" -o -name "*.hpp" -o -name "*.h" | \
+          xargs clang-format --dry-run --Werror --style=file || {
+            echo "❌ Code formatting issues found. Run clang-format to fix."
+            echo "Suggestion: Use 'find src include tests -name \"*.cpp\" -o -name \"*.hpp\" -o -name \"*.h\" | xargs clang-format -i'"
+            exit 1
+          }
+
+    - name: Run Static Analysis
+      run: |
+        # Run basic static analysis with cppcheck
+        cppcheck --enable=warning,style,performance,portability \
+                 --inline-suppr \
+                 --error-exitcode=1 \
+                 --std=c++17 \
+                 -I include \
+                 src/ || {
+          echo "⚠️ Static analysis found potential issues"
+        }
+
+  # =============================================================================
+  # PR Summary
+  # =============================================================================
+  pr-summary:
+    name: PR Validation Summary
+    runs-on: ubuntu-latest
+    needs: [quick-validation, pr-platform-tests, performance-impact, code-quality]
+    if: always()
+
+    steps:
+    - name: Generate PR Summary
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const jobs = [
+            { name: 'Quick Validation', status: '${{ needs.quick-validation.result }}' },
+            { name: 'Platform Tests', status: '${{ needs.pr-platform-tests.result }}' },
+            { name: 'Performance Impact', status: '${{ needs.performance-impact.result }}' },
+            { name: 'Code Quality', status: '${{ needs.code-quality.result }}' }
+          ];
+          
+          let summary = `## 📋 PR Validation Summary\n\n`;
+          
+          let allPassed = true;
+          for (const job of jobs) {
+            const emoji = job.status === 'success' ? '✅' : 
+                         job.status === 'skipped' ? '⏭️' : '❌';
+            summary += `${emoji} **${job.name}**: ${job.status}\n`;
+            
+            if (job.status === 'failure') {
+              allPassed = false;
+            }
+          }
+          
+          if (allPassed) {
+            summary += `\n🎉 **All validation checks passed!** This PR is ready for review.`;
+          } else {
+            summary += `\n⚠️ **Some checks failed.** Please review the failing jobs above.`;
+          }
+          
+          summary += `\n\n*Automated PR validation completed at ${new Date().toISOString()}*`;
+          
+          await github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: summary
+          });

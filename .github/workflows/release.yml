@@ -1,0 +1,477 @@
+name: Release Management
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v1.2.3)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  BUILD_TYPE: Release
+  CMAKE_BUILD_PARALLEL_LEVEL: 8
+
+jobs:
+  # =============================================================================
+  # Release Validation
+  # =============================================================================
+  validate-release:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      is_prerelease: ${{ steps.version.outputs.is_prerelease }}
+      changelog_exists: ${{ steps.changelog.outputs.exists }}
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Determine Version
+      id: version
+      run: |
+        if [ "${{ github.event_name }}" = "release" ]; then
+          VERSION="${{ github.event.release.tag_name }}"
+          IS_PRERELEASE="${{ github.event.release.prerelease }}"
+        else
+          VERSION="${{ github.event.inputs.version }}"
+          IS_PRERELEASE="${{ github.event.inputs.prerelease }}"
+        fi
+        
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+        
+        echo "📦 Release version: $VERSION"
+        echo "🏷️ Pre-release: $IS_PRERELEASE"
+
+    - name: Check Changelog
+      id: changelog
+      run: |
+        if [ -f "CHANGELOG.md" ]; then
+          if grep -q "${{ steps.version.outputs.version }}" CHANGELOG.md; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Changelog entry found for ${{ steps.version.outputs.version }}"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "⚠️ No changelog entry found for ${{ steps.version.outputs.version }}"
+          fi
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+          echo "⚠️ CHANGELOG.md not found"
+        fi
+
+    - name: Validate Version Format
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        if [[ $VERSION =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$ ]]; then
+          echo "✅ Version format is valid: $VERSION"
+        else
+          echo "❌ Invalid version format: $VERSION"
+          echo "Expected format: v1.2.3 or v1.2.3-beta"
+          exit 1
+        fi
+
+  # =============================================================================
+  # Multi-Platform Release Builds
+  # =============================================================================
+  build-release-artifacts:
+    name: Build Release (${{ matrix.config.name }})
+    runs-on: ${{ matrix.config.os }}
+    needs: validate-release
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - {
+              name: "Windows x64",
+              os: windows-latest,
+              cc: "cl",
+              cxx: "cl",
+              generator: "Visual Studio 17 2022",
+              artifact_name: "nexussynth-windows-x64",
+              package_format: "ZIP"
+            }
+          - {
+              name: "Ubuntu x64",
+              os: ubuntu-22.04,
+              cc: "gcc-11",
+              cxx: "g++-11",
+              packages: "gcc-11 g++-11",
+              artifact_name: "nexussynth-linux-x64",
+              package_format: "TGZ"
+            }
+          - {
+              name: "macOS Intel",
+              os: macos-13,
+              cc: "clang",
+              cxx: "clang++",
+              artifact_name: "nexussynth-macos-intel",
+              package_format: "TGZ"
+            }
+          - {
+              name: "macOS ARM64",
+              os: macos-14,
+              cc: "clang",
+              cxx: "clang++",
+              artifact_name: "nexussynth-macos-arm64",
+              package_format: "TGZ"
+            }
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Build Environment (Ubuntu)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential cmake ninja-build libomp-dev \
+          ${{ matrix.config.packages }}
+
+    - name: Setup Build Environment (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        brew install cmake ninja libomp
+
+    - name: Setup MSVC (Windows)
+      if: runner.os == 'Windows'
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Configure Release Build
+      run: |
+        cmake -B build-release \
+          -G "${{ matrix.config.generator }}" \
+          ${{ runner.os == 'Windows' && '-A x64' || '' }} \
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+          -DCMAKE_C_COMPILER=${{ matrix.config.cc }} \
+          -DCMAKE_CXX_COMPILER=${{ matrix.config.cxx }} \
+          -DNEXUSSYNTH_BUILD_TESTS=ON \
+          -DNEXUSSYNTH_BUILD_EXAMPLES=ON \
+          -DCPACK_PACKAGE_VERSION="${{ needs.validate-release.outputs.version }}"
+
+    - name: Build Release
+      run: |
+        cmake --build build-release \
+              --config ${{ env.BUILD_TYPE }} \
+              --parallel ${{ env.CMAKE_BUILD_PARALLEL_LEVEL }}
+
+    - name: Run Release Tests
+      working-directory: build-release
+      run: |
+        ctest --build-config ${{ env.BUILD_TYPE }} \
+              --output-on-failure \
+              --parallel 4 \
+              --timeout 300
+
+    - name: Run Release Performance Benchmarks
+      working-directory: build-release
+      run: |
+        mkdir -p ../release_benchmarks
+        
+        ${{ runner.os == 'Windows' && './bin/Release/performance_benchmark_tool.exe' || './performance_benchmark_tool' }} \
+          suite full \
+          --output ../release_benchmarks \
+          --iterations 50 \
+          --warmup 5 \
+          --json --csv \
+          --verbose
+
+    - name: Package Release
+      run: |
+        cmake --build build-release --target package --config ${{ env.BUILD_TYPE }}
+
+    - name: Create Distribution Archive
+      run: |
+        # Create comprehensive distribution package
+        mkdir -p dist/${{ matrix.config.artifact_name }}
+        
+        # Copy binaries
+        if [ "${{ runner.os }}" = "Windows" ]; then
+          cp -r build-release/bin/Release/* dist/${{ matrix.config.artifact_name }}/
+        else
+          cp -r build-release/bin/* dist/${{ matrix.config.artifact_name }}/
+          cp -r build-release/lib/* dist/${{ matrix.config.artifact_name }}/ 2>/dev/null || true
+        fi
+        
+        # Copy documentation
+        cp README.md LICENSE dist/${{ matrix.config.artifact_name }}/ 2>/dev/null || true
+        cp -r docs dist/${{ matrix.config.artifact_name }}/ 2>/dev/null || true
+        
+        # Copy performance benchmarks
+        cp -r release_benchmarks dist/${{ matrix.config.artifact_name }}/benchmarks/ 2>/dev/null || true
+        
+        # Create version info file
+        cat > dist/${{ matrix.config.artifact_name }}/VERSION.txt << EOF
+        NexusSynth ${{ needs.validate-release.outputs.version }}
+        Platform: ${{ matrix.config.name }}
+        Build Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+        Commit: $(git rev-parse HEAD)
+        EOF
+
+    - name: Create Archive
+      run: |
+        cd dist
+        if [ "${{ matrix.config.package_format }}" = "ZIP" ]; then
+          zip -r ${{ matrix.config.artifact_name }}-${{ needs.validate-release.outputs.version }}.zip ${{ matrix.config.artifact_name }}/
+        else
+          tar -czf ${{ matrix.config.artifact_name }}-${{ needs.validate-release.outputs.version }}.tar.gz ${{ matrix.config.artifact_name }}/
+        fi
+
+    - name: Upload Release Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.config.artifact_name }}-release
+        path: |
+          dist/${{ matrix.config.artifact_name }}-${{ needs.validate-release.outputs.version }}.*
+          build-release/*.zip
+          build-release/*.tar.gz
+          build-release/*.deb
+          build-release/*.rpm
+        retention-days: 90
+
+  # =============================================================================
+  # Release Performance Analysis
+  # =============================================================================
+  release-performance-analysis:
+    name: Release Performance Analysis
+    runs-on: ubuntu-latest
+    needs: [validate-release, build-release-artifacts]
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Download All Release Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: "*-release"
+        path: ./release_artifacts/
+
+    - name: Setup Analysis Environment
+      run: |
+        python3 -m pip install pandas matplotlib seaborn numpy scipy
+
+    - name: Analyze Release Performance
+      run: |
+        # Create release performance analysis
+        cat > analyze_release_performance.py << 'EOF'
+        import json
+        import os
+        from pathlib import Path
+        import pandas as pd
+        import matplotlib.pyplot as plt
+        
+        def analyze_release_benchmarks():
+            """Analyze performance benchmarks from all platforms."""
+            all_results = []
+            
+            # Load benchmark data from all platforms
+            for artifact_dir in Path("release_artifacts").iterdir():
+                if artifact_dir.is_dir():
+                    for json_file in artifact_dir.rglob("*.json"):
+                        try:
+                            with open(json_file, 'r') as f:
+                                data = json.load(f)
+                            
+                            platform = artifact_dir.name.replace("-release", "")
+                            
+                            if isinstance(data, list):
+                                for result in data:
+                                    result['platform'] = platform
+                                    all_results.append(result)
+                            else:
+                                data['platform'] = platform
+                                all_results.append(data)
+                                
+                        except (json.JSONDecodeError, FileNotFoundError):
+                            continue
+            
+            if not all_results:
+                print("No benchmark results found")
+                return
+            
+            df = pd.DataFrame(all_results)
+            
+            # Generate release performance report
+            os.makedirs("release_performance_analysis", exist_ok=True)
+            
+            # Summary statistics
+            summary = {
+                "version": "${{ needs.validate-release.outputs.version }}",
+                "total_benchmarks": len(df),
+                "platforms": df['platform'].nunique(),
+                "benchmark_types": df['benchmark_name'].nunique(),
+                "performance_by_platform": {}
+            }
+            
+            for platform in df['platform'].unique():
+                platform_data = df[df['platform'] == platform]
+                avg_time = platform_data['avg_execution_time_ns'].mean()
+                
+                summary["performance_by_platform"][platform] = {
+                    "avg_execution_time_ms": round(avg_time / 1_000_000, 3),
+                    "benchmark_count": len(platform_data)
+                }
+            
+            with open("release_performance_analysis/summary.json", 'w') as f:
+                json.dump(summary, f, indent=2)
+            
+            # Generate performance comparison chart
+            if len(df) > 0:
+                plt.figure(figsize=(12, 8))
+                df['avg_execution_time_ms'] = df['avg_execution_time_ns'] / 1_000_000
+                
+                pivot_data = df.pivot_table(
+                    index='benchmark_name', 
+                    columns='platform', 
+                    values='avg_execution_time_ms'
+                )
+                
+                pivot_data.plot(kind='bar', figsize=(14, 8))
+                plt.title(f'NexusSynth {summary["version"]} - Performance by Platform')
+                plt.ylabel('Execution Time (ms)')
+                plt.xticks(rotation=45, ha='right')
+                plt.legend(title='Platform')
+                plt.tight_layout()
+                plt.savefig('release_performance_analysis/platform_comparison.png', 
+                           dpi=300, bbox_inches='tight')
+                
+            print(f"Release performance analysis completed for version {summary['version']}")
+        
+        analyze_release_benchmarks()
+        EOF
+        
+        python3 analyze_release_performance.py
+
+    - name: Upload Performance Analysis
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-performance-analysis
+        path: release_performance_analysis/
+        retention-days: 365  # Keep for a year
+
+  # =============================================================================
+  # Publish Release
+  # =============================================================================
+  publish-release:
+    name: Publish Release
+    runs-on: ubuntu-latest
+    needs: [validate-release, build-release-artifacts, release-performance-analysis]
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Download All Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: ./all_artifacts/
+
+    - name: Prepare Release Assets
+      run: |
+        mkdir -p release_assets
+        
+        # Collect all release packages
+        find all_artifacts -name "nexussynth-*-${{ needs.validate-release.outputs.version }}.*" \
+          -exec cp {} release_assets/ \;
+        
+        # Copy performance analysis
+        cp -r all_artifacts/release-performance-analysis/* release_assets/ 2>/dev/null || true
+        
+        ls -la release_assets/
+
+    - name: Generate Release Notes
+      run: |
+        VERSION="${{ needs.validate-release.outputs.version }}"
+        
+        cat > release_notes.md << EOF
+        # NexusSynth $VERSION
+        
+        ## 🎯 Release Highlights
+        
+        This release includes comprehensive multi-platform builds and performance optimizations.
+        
+        ## 📦 Available Downloads
+        
+        ### Platform Builds
+        - **Windows x64**: \`nexussynth-windows-x64-$VERSION.zip\`
+        - **Linux x64**: \`nexussynth-linux-x64-$VERSION.tar.gz\`
+        - **macOS Intel**: \`nexussynth-macos-intel-$VERSION.tar.gz\`
+        - **macOS ARM64**: \`nexussynth-macos-arm64-$VERSION.tar.gz\`
+        
+        ## 🚀 Performance Metrics
+        
+        All platform builds have been validated with comprehensive performance benchmarks.
+        
+        ## 🧪 Quality Assurance
+        - ✅ All unit tests passing
+        - ✅ Integration tests validated
+        - ✅ Performance benchmarks completed
+        - ✅ Multi-platform compatibility verified
+        
+        ## 📋 Installation
+        
+        1. Download the appropriate package for your platform
+        2. Extract the archive
+        3. Run NexusSynth from the extracted directory
+        
+        For detailed usage instructions, see the included documentation.
+        
+        ---
+        
+        **Build Information:**
+        - Build Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+        - Commit: $(git rev-parse HEAD)
+        - Workflow: [Release Management](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+        EOF
+
+    - name: Extract Changelog (if available)
+      if: needs.validate-release.outputs.changelog_exists == 'true'
+      run: |
+        VERSION="${{ needs.validate-release.outputs.version }}"
+        
+        # Extract changelog section for this version
+        if [ -f "CHANGELOG.md" ]; then
+          echo "" >> release_notes.md
+          echo "## 📝 Changelog" >> release_notes.md
+          echo "" >> release_notes.md
+          
+          # Extract section between version headers
+          sed -n "/## \[$VERSION\]/,/## \[/p" CHANGELOG.md | head -n -1 >> release_notes.md
+        fi
+
+    - name: Create or Update Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ needs.validate-release.outputs.version }}
+        name: ${{ needs.validate-release.outputs.version }}
+        body_path: release_notes.md
+        files: |
+          release_assets/nexussynth-*-${{ needs.validate-release.outputs.version }}.*
+        draft: false
+        prerelease: ${{ needs.validate-release.outputs.is_prerelease == 'true' }}
+        generate_release_notes: false
+        
+    - name: Notify Release Success
+      run: |
+        echo "🎉 Release ${{ needs.validate-release.outputs.version }} published successfully!"
+        echo "📦 Assets uploaded: $(ls -1 release_assets/nexussynth-* | wc -l) platform packages"
