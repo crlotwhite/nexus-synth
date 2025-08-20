@@ -1,0 +1,407 @@
+name: Performance Regression Detection
+
+on:
+  # Run on every push to main to build baseline
+  push:
+    branches: [ main ]
+  # Run on PRs for comparison
+  pull_request:
+    branches: [ main, develop ]
+  # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      force_baseline_update:
+        description: 'Force update of performance baseline'
+        required: false
+        default: 'false'
+        type: boolean
+      create_github_issues:
+        description: 'Create GitHub issues for regressions'
+        required: false
+        default: 'true'
+        type: boolean
+
+env:
+  BUILD_TYPE: Release
+  CMAKE_BUILD_PARALLEL_LEVEL: 4
+
+jobs:
+  # =============================================================================
+  # Build and Benchmark Current Code
+  # =============================================================================
+  performance-benchmarking:
+    name: Performance Benchmarking (${{ matrix.config.name }})
+    runs-on: ${{ matrix.config.os }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - {
+              name: "Ubuntu GCC",
+              os: ubuntu-22.04,
+              cc: "gcc-11",
+              cxx: "g++-11",
+              packages: "gcc-11 g++-11"
+            }
+          - {
+              name: "Windows MSVC",
+              os: windows-latest,
+              cc: "cl", 
+              cxx: "cl"
+            }
+          - {
+              name: "macOS Clang",
+              os: macos-13,
+              cc: "clang",
+              cxx: "clang++"
+            }
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Dependencies (Ubuntu)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake ninja-build libomp-dev ${{ matrix.config.packages }}
+
+    - name: Setup Dependencies (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        brew install cmake ninja libomp
+
+    - name: Setup MSVC (Windows)
+      if: runner.os == 'Windows'
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Configure CMake
+      run: |
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+          -DCMAKE_C_COMPILER=${{ matrix.config.cc }} \
+          -DCMAKE_CXX_COMPILER=${{ matrix.config.cxx }} \
+          -DNEXUSSYNTH_BUILD_TESTS=ON \
+          -DNEXUSSYNTH_BUILD_EXAMPLES=OFF
+
+    - name: Build Project
+      run: |
+        cmake --build build --config ${{ env.BUILD_TYPE }} --parallel ${{ env.CMAKE_BUILD_PARALLEL_LEVEL }}
+
+    - name: Run Comprehensive Performance Benchmarks
+      working-directory: build
+      run: |
+        mkdir -p ../performance_results/${{ matrix.config.name }}
+        
+        # Run comprehensive benchmark suite with multiple iterations
+        ${{ runner.os == 'Windows' && './bin/Release/performance_benchmark_tool' || './performance_benchmark_tool' }} \
+          suite comprehensive \
+          --output ../performance_results/${{ matrix.config.name }} \
+          --iterations 50 \
+          --warmup 5 \
+          --json --csv \
+          --detailed-metrics \
+          --include-environment-info \
+          --verbose
+
+    - name: Upload Performance Results
+      uses: actions/upload-artifact@v4
+      with:
+        name: performance-results-${{ matrix.config.name }}
+        path: performance_results/
+        retention-days: 90  # Keep longer for trend analysis
+
+  # =============================================================================
+  # Regression Analysis and Detection
+  # =============================================================================
+  regression-detection:
+    name: Regression Analysis
+    runs-on: ubuntu-latest
+    needs: performance-benchmarking
+    permissions:
+      issues: write  # For creating regression issues
+      pull-requests: write  # For PR comments
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Download All Performance Results
+      uses: actions/download-artifact@v4
+      with:
+        pattern: performance-results-*
+        path: ./all_performance_results/
+
+    - name: Setup Python Environment
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install Analysis Dependencies
+      run: |
+        pip install pandas matplotlib seaborn numpy scipy
+
+    - name: Setup Performance Database
+      run: |
+        mkdir -p .performance_db
+        # Initialize database if it doesn't exist
+        python .github/scripts/performance_regression_detector.py \
+          --input ./all_performance_results \
+          --database .performance_db/metrics.db \
+          --output ./regression_analysis \
+          --commit-hash ${{ github.sha }} \
+          --baseline-days 30
+
+    - name: Cache Performance Database
+      uses: actions/cache@v4
+      with:
+        path: .performance_db/
+        key: performance-db-${{ github.repository }}-${{ github.sha }}
+        restore-keys: |
+          performance-db-${{ github.repository }}-
+
+    - name: Run Regression Detection Analysis
+      id: regression-analysis
+      run: |
+        python .github/scripts/performance_regression_detector.py \
+          --input ./all_performance_results \
+          --database .performance_db/metrics.db \
+          --output ./regression_analysis \
+          --commit-hash ${{ github.sha }} \
+          --create-github-issues ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }} \
+          --baseline-days 30
+
+    - name: Generate Trend Analysis Dashboard
+      run: |
+        python .github/scripts/generate_performance_dashboard.py \
+          --database .performance_db/metrics.db \
+          --output ./regression_analysis/dashboard \
+          --days-back 90
+
+    - name: Upload Regression Analysis Results
+      uses: actions/upload-artifact@v4
+      with:
+        name: regression-analysis-report
+        path: regression_analysis/
+        retention-days: 365  # Keep regression reports for historical analysis
+
+    - name: Comment Regression Analysis on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+          
+          // Check if regression summary exists
+          const summaryPath = './regression_analysis/regression_summary.md';
+          if (!fs.existsSync(summaryPath)) {
+            console.log('No regression summary found');
+            return;
+          }
+          
+          const summary = fs.readFileSync(summaryPath, 'utf8');
+          
+          // Add performance comparison context
+          let comment = `## 🚀 Performance Regression Analysis\n\n`;
+          comment += `**Analysis Commit:** \`${context.sha.substring(0, 8)}\`\n`;
+          comment += `**Baseline Period:** Last 30 days of main branch\n\n`;
+          comment += summary;
+          
+          // Add link to detailed dashboard
+          comment += `\n\n📊 [View Detailed Performance Dashboard](${context.payload.pull_request.html_url}/checks)\n`;
+          comment += `\n*This analysis was automatically generated by the NexusSynth Performance Regression Detection System.*`;
+          
+          // Create or update comment
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+          
+          const existingComment = comments.find(comment => 
+            comment.user.login === 'github-actions[bot]' && 
+            comment.body.includes('Performance Regression Analysis')
+          );
+          
+          if (existingComment) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existingComment.id,
+              body: comment
+            });
+          } else {
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+          }
+
+    - name: Create GitHub Issues for Critical Regressions
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.regression-analysis.outputs.critical-regressions > 0
+      run: |
+        if [ -f "performance_regression_issue.sh" ]; then
+          chmod +x performance_regression_issue.sh
+          ./performance_regression_issue.sh
+        fi
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Send Slack Notification for Regressions
+      if: steps.regression-analysis.outputs.has-regressions == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: slackapi/slack-github-action@v1.25.0
+      with:
+        payload: |
+          {
+            "text": "🚨 Performance Regression Detected in NexusSynth",
+            "attachments": [
+              {
+                "color": "danger",
+                "fields": [
+                  {
+                    "title": "Repository",
+                    "value": "${{ github.repository }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Commit",
+                    "value": "`${{ github.sha }}`",
+                    "short": true
+                  },
+                  {
+                    "title": "Total Regressions",
+                    "value": "${{ steps.regression-analysis.outputs.regression-count }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Critical Regressions",
+                    "value": "${{ steps.regression-analysis.outputs.critical-regressions }}",
+                    "short": true
+                  }
+                ]
+              }
+            ]
+          }
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # =============================================================================
+  # Performance Baseline Management
+  # =============================================================================
+  update-performance-baseline:
+    name: Update Performance Baseline
+    runs-on: ubuntu-latest
+    needs: regression-detection
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') || 
+      (github.event_name == 'workflow_dispatch' && inputs.force_baseline_update == 'true')
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Download Regression Analysis
+      uses: actions/download-artifact@v4
+      with:
+        name: regression-analysis-report
+        path: ./regression_analysis/
+
+    - name: Setup Python Environment
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install Dependencies
+      run: |
+        pip install pandas matplotlib seaborn numpy scipy
+
+    - name: Restore Performance Database
+      uses: actions/cache/restore@v4
+      with:
+        path: .performance_db/
+        key: performance-db-${{ github.repository }}-${{ github.sha }}
+        restore-keys: |
+          performance-db-${{ github.repository }}-
+
+    - name: Update Baseline Performance Metrics
+      run: |
+        python .github/scripts/update_performance_baseline.py \
+          --database .performance_db/metrics.db \
+          --commit-hash ${{ github.sha }} \
+          --branch main \
+          --cleanup-old-data
+
+    - name: Save Updated Database
+      uses: actions/cache/save@v4
+      with:
+        path: .performance_db/
+        key: performance-db-${{ github.repository }}-${{ github.sha }}
+
+  # =============================================================================
+  # Performance Report Generation
+  # =============================================================================
+  generate-performance-reports:
+    name: Generate Performance Reports
+    runs-on: ubuntu-latest
+    needs: [regression-detection, update-performance-baseline]
+    if: always() && needs.regression-detection.result == 'success'
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Download Analysis Results
+      uses: actions/download-artifact@v4
+      with:
+        name: regression-analysis-report
+        path: ./regression_analysis/
+
+    - name: Setup Python Environment
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install Dependencies
+      run: |
+        pip install pandas matplotlib seaborn numpy scipy plotly
+
+    - name: Restore Performance Database
+      uses: actions/cache/restore@v4
+      with:
+        path: .performance_db/
+        key: performance-db-${{ github.repository }}-${{ github.sha }}
+        restore-keys: |
+          performance-db-${{ github.repository }}-
+
+    - name: Generate Comprehensive Performance Dashboard
+      run: |
+        python .github/scripts/generate_performance_dashboard.py \
+          --database .performance_db/metrics.db \
+          --output ./performance_dashboard \
+          --days-back 90 \
+          --include-trends \
+          --include-platform-comparison \
+          --include-regression-history
+
+    - name: Deploy Dashboard to GitHub Pages
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./performance_dashboard
+        destination_dir: performance
+        keep_files: false
+
+    - name: Upload Performance Dashboard
+      uses: actions/upload-artifact@v4
+      with:
+        name: performance-dashboard
+        path: performance_dashboard/
+        retention-days: 90
