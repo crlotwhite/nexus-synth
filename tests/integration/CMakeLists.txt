@@ -137,6 +137,43 @@ target_link_libraries(ab_comparison_tool
     nexussynth_lib
 )
 
+# Performance Benchmark Framework Library
+add_library(performance_benchmark_lib STATIC
+    benchmarks/performance_benchmark.cpp
+    benchmarks/benchmark_data_collector.cpp
+)
+target_link_libraries(performance_benchmark_lib
+    integration_test_utils
+    nexussynth_lib
+    world
+    Eigen3::Eigen
+)
+target_include_directories(performance_benchmark_lib PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/benchmarks
+)
+
+# Performance Benchmark Test Suite
+add_executable(integration_performance_benchmark benchmarks/test_performance_benchmark.cpp)
+target_link_libraries(integration_performance_benchmark
+    performance_benchmark_lib
+    integration_test_utils
+    nexussynth_lib
+    GTest::gtest_main
+    GTest::gtest
+    world
+    Eigen3::Eigen
+    asmjit::asmjit
+    cjson
+)
+
+# Performance Benchmark CLI Tool
+add_executable(performance_benchmark_tool benchmarks/performance_benchmark_tool.cpp)
+target_link_libraries(performance_benchmark_tool
+    performance_benchmark_lib
+    integration_test_utils
+    nexussynth_lib
+)
+
 # Custom targets for running test categories
 add_custom_target(test_conversion
     COMMAND ${CMAKE_CTEST_COMMAND} -L "conversion" --verbose
@@ -152,7 +189,7 @@ add_custom_target(test_synthesis
 
 add_custom_target(test_benchmarks
     COMMAND ${CMAKE_CTEST_COMMAND} -L "benchmarks" --verbose  
-    DEPENDS integration_rendering_performance
+    DEPENDS integration_rendering_performance integration_performance_benchmark
     COMMENT "Running performance benchmark tests"
 )
 
@@ -169,6 +206,21 @@ add_custom_target(test_ab_comparison
     COMMENT "Running A/B comparison tests"
 )
 
+# Performance benchmark custom target
+add_custom_target(test_performance_benchmark
+    COMMAND ${CMAKE_CTEST_COMMAND} -R "integration_performance_benchmark" --verbose
+    DEPENDS integration_performance_benchmark
+    COMMENT "Running comprehensive performance benchmarks"
+)
+
+# Benchmark CLI tool custom target
+add_custom_target(run_benchmark_suite
+    COMMAND performance_benchmark_tool --suite=full --output=${CMAKE_CURRENT_BINARY_DIR}/benchmark_results
+    DEPENDS performance_benchmark_tool
+    COMMENT "Running full benchmark suite with CLI tool"
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 # Main integration test target
 add_custom_target(integration_tests
     COMMAND ${CMAKE_CTEST_COMMAND} -L "integration" --verbose --parallel 2
@@ -178,6 +230,7 @@ add_custom_target(integration_tests
         integration_e2e_synthesis
         integration_rendering_performance
         integration_ab_comparison
+        integration_performance_benchmark
     COMMENT "Running all integration tests"
 )
 
@@ -205,4 +258,14 @@ add_test(NAME integration_ab_comparison
 set_tests_properties(integration_ab_comparison PROPERTIES
     TIMEOUT ${INTEGRATION_TEST_TIMEOUT}
     LABELS "integration;ab_comparison;quality"
+)
+
+# Register Performance Benchmark test with CTest
+add_test(NAME integration_performance_benchmark 
+         COMMAND integration_performance_benchmark
+         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+         
+set_tests_properties(integration_performance_benchmark PROPERTIES
+    TIMEOUT ${INTEGRATION_TEST_TIMEOUT}
+    LABELS "integration;performance;benchmarks"
 )
