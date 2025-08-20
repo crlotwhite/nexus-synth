@@ -257,7 +257,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Download All Release Artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         pattern: "*-release"
         path: ./release_artifacts/
@@ -382,7 +382,7 @@ jobs:
         fetch-depth: 0
 
     - name: Download All Artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v5
       with:
         path: ./all_artifacts/
 
