@@ -256,7 +256,7 @@ jobs:
 
     - name: Send Slack Notification for Regressions
       if: steps.regression-analysis.outputs.has-regressions == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
-      uses: slackapi/slack-github-action@v1.25.0
+      uses: slackapi/slack-github-action@v2.1.1
       with:
         payload: |
           {
